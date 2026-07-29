@@ -1,0 +1,5 @@
+langchain
+langchain-google-genai
+python_dotenv
+langchain_community
+gTTS
