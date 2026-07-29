@@ -1,4 +1,7 @@
 node_modules/
 .env
 .env.example
-_pycache_
+__pycache__/
+venv/         
+dist/
+.DS_Store
