@@ -1,41 +1,28 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Sidebar from "../components/Sidebar";
 import { Bell, CheckCheck } from "lucide-react";
+import { getNotifications, markAllNotificationsRead } from "../lib/api";
 
 interface Notification {
   id: string;
   text: string;
-  time: string;
   read: boolean;
+  created_at: string;
 }
 
-const seed: Notification[] = [
-  {
-    id: "1",
-    text: "Dr. Smith uploaded Database Assignment",
-    time: "2h ago",
-    read: false,
-  },
-  {
-    id: "2",
-    text: "AI graded your Quiz - Operating Systems",
-    time: "5h ago",
-    read: false,
-  },
-  {
-    id: "3",
-    text: "Exam scheduled for Database Systems",
-    time: "1d ago",
-    read: true,
-  },
-  { id: "4", text: "New message from Dr. Johnson", time: "2d ago", read: true },
-];
-
 const NotificationsPage: React.FC = () => {
-  const [notifications, setNotifications] = useState(seed);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
 
-  const markAllRead = () =>
+  useEffect(() => {
+    getNotifications()
+      .then(setNotifications)
+      .catch(() => setNotifications([]));
+  }, []);
+
+  const markAllRead = async () => {
+    await markAllNotificationsRead();
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  };
 
   return (
     <div className="flex h-screen bg-slate-50">
@@ -65,7 +52,6 @@ const NotificationsPage: React.FC = () => {
                 >
                   {n.text}
                 </p>
-                <p className="text-xs text-slate-400 mt-0.5">{n.time}</p>
               </div>
               {!n.read && (
                 <span className="w-2 h-2 rounded-full bg-indigo-600 mt-1.5" />

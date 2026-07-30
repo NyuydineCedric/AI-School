@@ -1,30 +1,37 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Sidebar from "../components/Sidebar";
 import { Search, Plus } from "lucide-react";
+import { getQuestionBank, addQuestionBankItem } from "../lib/api";
 
-const questions = [
-  {
-    text: "Which normal form eliminates partial dependency?",
-    course: "Database Systems",
-    difficulty: "Medium",
-  },
-  {
-    text: "What is the time complexity of binary search?",
-    course: "Data Structures",
-    difficulty: "Easy",
-  },
-  {
-    text: "Explain the Round Robin scheduling algorithm.",
-    course: "Operating Systems",
-    difficulty: "Hard",
-  },
-];
+interface QBItem {
+  id: string;
+  course_name: string;
+  text: string;
+  difficulty: string;
+}
 
 const QuestionBankPage: React.FC = () => {
+  const [items, setItems] = useState<QBItem[]>([]);
   const [search, setSearch] = useState("");
-  const filtered = questions.filter((q) =>
+
+  useEffect(() => {
+    getQuestionBank()
+      .then(setItems)
+      .catch(() => setItems([]));
+  }, []);
+
+  const filtered = items.filter((q) =>
     q.text.toLowerCase().includes(search.toLowerCase()),
   );
+
+  const addSample = async () => {
+    const item = await addQuestionBankItem(
+      "Database Systems",
+      "New question — edit me",
+      "Medium",
+    );
+    setItems((prev) => [item, ...prev]);
+  };
 
   return (
     <div className="flex h-screen bg-slate-50">
@@ -34,7 +41,10 @@ const QuestionBankPage: React.FC = () => {
           <h1 className="text-xl font-semibold text-slate-800">
             Question Bank
           </h1>
-          <button className="flex items-center gap-1 bg-indigo-600 text-white text-sm font-medium px-4 py-2 rounded-lg">
+          <button
+            onClick={addSample}
+            className="flex items-center gap-1 bg-indigo-600 text-white text-sm font-medium px-4 py-2 rounded-lg"
+          >
             <Plus size={14} /> Add Question
           </button>
         </div>
@@ -53,14 +63,14 @@ const QuestionBankPage: React.FC = () => {
         </div>
 
         <div className="bg-white border border-slate-200 rounded-xl divide-y divide-slate-100">
-          {filtered.map((q, i) => (
+          {filtered.map((q) => (
             <div
-              key={i}
+              key={q.id}
               className="flex items-center justify-between px-5 py-4"
             >
               <div>
                 <p className="text-sm text-slate-700">{q.text}</p>
-                <p className="text-xs text-slate-400 mt-1">{q.course}</p>
+                <p className="text-xs text-slate-400 mt-1">{q.course_name}</p>
               </div>
               <span className="text-xs font-medium bg-indigo-50 text-indigo-600 px-2 py-1 rounded-md">
                 {q.difficulty}

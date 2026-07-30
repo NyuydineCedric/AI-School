@@ -1,5 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
+import { clearSession } from "../lib/auth";
 import {
   LayoutDashboard,
   BookOpen,
@@ -21,6 +23,7 @@ import {
   CheckSquare,
   BarChart3,
   Megaphone,
+  LogOut,
 } from "lucide-react";
 import { Role } from "../types";
 
@@ -189,6 +192,18 @@ const Sidebar: React.FC<SidebarProps> = ({ role, active }) => {
           );
         })}
       </nav>
+      <div className="p-3 border-t border-slate-200">
+        <button
+          onClick={() => {
+            clearSession();
+            navigate("/login");
+          }}
+          className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[13.5px] font-medium text-slate-500 hover:bg-slate-50 hover:text-rose-600"
+        >
+          <LogOut size={17} className="text-slate-400" />
+          Log out
+        </button>
+      </div>
     </aside>
   );
 };

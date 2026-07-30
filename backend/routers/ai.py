@@ -1,35 +1,37 @@
-#AI Tutor
 import os
 from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
-from fastapi import FastAPI
+from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List
 
-from fastapi.middleware.cors import CORSMiddleware
-
+from auth import get_current_user
+import models
 
 load_dotenv()
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
-app = FastAPI()
+router = APIRouter(tags=["ai"])
+
 
 class ChatMessage(BaseModel):
-    role: str        # "user" or "assistant"
+    role: str  # "user" or "assistant"
     content: str
 
+
 class Question(BaseModel):
-    messages: List[ChatMessage]   # full conversation so far, not just one question
+    messages: List[ChatMessage]
     accent: str = "USA"
     temperature: float = 1.0
 
-@app.post("/ai")
-def ask_ai(q: Question):
+
+@router.post("/ai")
+def ask_ai(q: Question, user: models.User = Depends(get_current_user)):
     lim = ChatGoogleGenerativeAI(
-        model = "gemini-3.1-flash-lite",
-        google_api_key = GOOGLE_API_KEY,
-        temperature = q.temperature
+        model="gemini-3.1-flash-lite",
+        google_api_key=GOOGLE_API_KEY,
+        temperature=q.temperature,
     )
 
     message = [
@@ -48,15 +50,5 @@ def ask_ai(q: Question):
                         yield chunk
                     elif isinstance(chunk, dict) and "text" in chunk:
                         yield chunk["text"]
-                        
-    
 
     return StreamingResponse(token_stream(), media_type="text/plain")
-
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)

@@ -1,12 +1,12 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
-import { GraduationCap, ArrowRight, PlayCircle } from 'lucide-react';
+import React from "react";
+import { Link } from "react-router-dom";
+import { GraduationCap, ArrowRight, PlayCircle } from "lucide-react";
 
 const stats = [
-  { value: '500+', label: 'Schools' },
-  { value: '50K+', label: 'Teachers' },
-  { value: '500K+', label: 'Students' },
-  { value: '98%', label: 'Satisfaction' },
+  { value: "500+", label: "Schools" },
+  { value: "50K+", label: "Teachers" },
+  { value: "500K+", label: "Students" },
+  { value: "98%", label: "Satisfaction" },
 ];
 
 const LandingPage: React.FC = () => {
@@ -21,10 +21,10 @@ const LandingPage: React.FC = () => {
           <span className="font-semibold text-slate-800">Smart School AI</span>
         </div>
         <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-600">
-          <a href="#">Features</a>
-          <a href="#">Solutions</a>
-          <a href="#">Pricing</a>
-          <a href="#">About Us</a>
+          <a href="#features">Features</a>
+          <a href="#solutions">Solutions</a>
+          <a href="#pricing">Pricing</a>
+          <a href="#about">About Us</a>
         </nav>
         <Link
           to="/login"
@@ -41,7 +41,8 @@ const LandingPage: React.FC = () => {
             AI-Powered <br /> School Management <br /> &amp; Learning Platform
           </h1>
           <p className="text-slate-500 mt-6 text-lg max-w-md">
-            Empower teachers. Inspire students. Automate grading. Improve learning.
+            Empower teachers. Inspire students. Automate grading. Improve
+            learning.
           </p>
           <div className="flex items-center gap-4 mt-8">
             <Link
@@ -65,7 +66,9 @@ const LandingPage: React.FC = () => {
           </div>
 
           <div className="mt-10">
-            <p className="text-xs text-slate-400 mb-3">Trusted by schools around the world</p>
+            <p className="text-xs text-slate-400 mb-3">
+              Trusted by schools around the world
+            </p>
             <div className="flex gap-6">
               {[0, 1, 2, 3, 4].map((i) => (
                 <div key={i} className="w-9 h-9 rounded-full bg-slate-200" />

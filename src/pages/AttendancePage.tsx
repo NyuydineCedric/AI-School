@@ -1,26 +1,58 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Sidebar from "../components/Sidebar";
 import { Role } from "../types";
+import {
+  getAttendance,
+  getStudents,
+  markAttendance,
+  getCourses,
+} from "../lib/api";
 
-const studentRows = [
-  { date: "Jul 21, 2026", course: "Data Structures", status: "Present" },
-  { date: "Jul 22, 2026", course: "Operating Systems", status: "Present" },
-  { date: "Jul 23, 2026", course: "Database Systems", status: "Absent" },
-  { date: "Jul 24, 2026", course: "Computer Networks", status: "Present" },
-];
-
-const classRoster = ["Alex Morgan", "Samantha Lee", "Daniel Kim", "Cedric N."];
+interface StudentRow {
+  id: string;
+  name: string;
+  attendance: string;
+  grade: string;
+}
 
 const AttendancePage: React.FC<{ role: Role }> = ({ role }) => {
-  const [marks, setMarks] = useState<Record<string, "Present" | "Absent">>(
-    Object.fromEntries(classRoster.map((n) => [n, "Present"])),
-  );
+  const [studentData, setStudentData] = useState<{
+    rows: any[];
+    percentage: number;
+    attended: number;
+    total: number;
+  } | null>(null);
+  const [roster, setRoster] = useState<StudentRow[]>([]);
+  const [marks, setMarks] = useState<Record<string, "Present" | "Absent">>({});
+  const [courseId, setCourseId] = useState<string>("");
+  const [saved, setSaved] = useState(false);
 
-  const toggle = (name: string) =>
+  useEffect(() => {
+    if (role === "student") {
+      getAttendance()
+        .then(setStudentData)
+        .catch(() => setStudentData(null));
+    } else {
+      getStudents().then((students: StudentRow[]) => {
+        setRoster(students);
+        setMarks(Object.fromEntries(students.map((s) => [s.id, "Present"])));
+      });
+      getCourses().then((courses) => setCourseId(courses[0]?.id ?? ""));
+    }
+  }, [role]);
+
+  const toggle = (id: string) =>
     setMarks((prev) => ({
       ...prev,
-      [name]: prev[name] === "Present" ? "Absent" : "Present",
+      [id]: prev[id] === "Present" ? "Absent" : "Present",
     }));
+
+  const handleSave = async () => {
+    if (!courseId) return;
+    await markAttendance(courseId, marks);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
 
   return (
     <div className="flex h-screen bg-slate-50">
@@ -35,11 +67,15 @@ const AttendancePage: React.FC<{ role: Role }> = ({ role }) => {
             <div className="bg-white border border-slate-200 rounded-xl px-5 py-4 mb-5 flex items-center gap-6">
               <div>
                 <p className="text-xs text-slate-500">This Month</p>
-                <p className="text-2xl font-bold text-emerald-600">92%</p>
+                <p className="text-2xl font-bold text-emerald-600">
+                  {studentData?.percentage ?? 0}%
+                </p>
               </div>
               <div>
                 <p className="text-xs text-slate-500">Classes Attended</p>
-                <p className="text-2xl font-bold text-slate-800">46 / 50</p>
+                <p className="text-2xl font-bold text-slate-800">
+                  {studentData?.attended ?? 0} / {studentData?.total ?? 0}
+                </p>
               </div>
             </div>
             <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
@@ -52,17 +88,13 @@ const AttendancePage: React.FC<{ role: Role }> = ({ role }) => {
                   </tr>
                 </thead>
                 <tbody>
-                  {studentRows.map((r, i) => (
+                  {studentData?.rows.map((r: any, i: number) => (
                     <tr key={i} className="border-t border-slate-100">
                       <td className="px-5 py-3 text-slate-700">{r.date}</td>
                       <td className="px-5 py-3 text-slate-600">{r.course}</td>
                       <td className="px-5 py-3">
                         <span
-                          className={`text-xs font-medium px-2 py-1 rounded-md ${
-                            r.status === "Present"
-                              ? "bg-emerald-50 text-emerald-600"
-                              : "bg-rose-50 text-rose-600"
-                          }`}
+                          className={`text-xs font-medium px-2 py-1 rounded-md ${r.status === "Present" ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600"}`}
                         >
                           {r.status}
                         </span>
@@ -76,23 +108,19 @@ const AttendancePage: React.FC<{ role: Role }> = ({ role }) => {
         ) : (
           <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
             <div className="px-5 py-3 border-b border-slate-100 font-semibold text-sm text-slate-800">
-              Data Structures — Today
+              Today
             </div>
             <table className="w-full text-sm">
               <tbody>
-                {classRoster.map((name) => (
-                  <tr key={name} className="border-t border-slate-100">
-                    <td className="px-5 py-3 text-slate-700">{name}</td>
+                {roster.map((s) => (
+                  <tr key={s.id} className="border-t border-slate-100">
+                    <td className="px-5 py-3 text-slate-700">{s.name}</td>
                     <td className="px-5 py-3 text-right">
                       <button
-                        onClick={() => toggle(name)}
-                        className={`text-xs font-medium px-3 py-1.5 rounded-md ${
-                          marks[name] === "Present"
-                            ? "bg-emerald-50 text-emerald-600"
-                            : "bg-rose-50 text-rose-600"
-                        }`}
+                        onClick={() => toggle(s.id)}
+                        className={`text-xs font-medium px-3 py-1.5 rounded-md ${marks[s.id] === "Present" ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600"}`}
                       >
-                        {marks[name]}
+                        {marks[s.id]}
                       </button>
                     </td>
                   </tr>
@@ -100,8 +128,11 @@ const AttendancePage: React.FC<{ role: Role }> = ({ role }) => {
               </tbody>
             </table>
             <div className="p-4 border-t border-slate-100">
-              <button className="bg-indigo-600 text-white text-sm font-medium px-4 py-2 rounded-lg">
-                Save Attendance
+              <button
+                onClick={handleSave}
+                className="bg-indigo-600 text-white text-sm font-medium px-4 py-2 rounded-lg"
+              >
+                {saved ? "Saved ✓" : "Save Attendance"}
               </button>
             </div>
           </div>

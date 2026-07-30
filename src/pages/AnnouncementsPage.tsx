@@ -1,44 +1,31 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Sidebar from "../components/Sidebar";
 import { Megaphone } from "lucide-react";
+import { getAnnouncements, createAnnouncement } from "../lib/api";
 
 interface Announcement {
   id: string;
   title: string;
   body: string;
-  course: string;
-  date: string;
+  course_name: string;
 }
 
-const seed: Announcement[] = [
-  {
-    id: "1",
-    title: "Midterm Rescheduled",
-    body: "The midterm has moved to next Monday.",
-    course: "Database Systems",
-    date: "Jul 24, 2026",
-  },
-  {
-    id: "2",
-    title: "Office Hours Update",
-    body: "Office hours now on Wednesdays 2-4pm.",
-    course: "All Courses",
-    date: "Jul 20, 2026",
-  },
-];
-
 const AnnouncementsPage: React.FC = () => {
-  const [announcements, setAnnouncements] = useState(seed);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [course, setCourse] = useState("All Courses");
 
-  const post = () => {
+  useEffect(() => {
+    getAnnouncements()
+      .then(setAnnouncements)
+      .catch(() => setAnnouncements([]));
+  }, []);
+
+  const post = async () => {
     if (!title.trim() || !body.trim()) return;
-    setAnnouncements((prev) => [
-      { id: crypto.randomUUID(), title, body, course, date: "Just now" },
-      ...prev,
-    ]);
+    const created = await createAnnouncement(title, body, course);
+    setAnnouncements((prev) => [created, ...prev]);
     setTitle("");
     setBody("");
   };
@@ -95,11 +82,10 @@ const AnnouncementsPage: React.FC = () => {
                 <p className="text-sm font-semibold text-slate-800">
                   {a.title}
                 </p>
-                <span className="text-xs text-slate-400 ml-auto">{a.date}</span>
               </div>
               <p className="text-sm text-slate-600 mb-1">{a.body}</p>
               <span className="text-xs font-medium bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-md">
-                {a.course}
+                {a.course_name}
               </span>
             </div>
           ))}
