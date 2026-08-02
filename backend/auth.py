@@ -1,11 +1,11 @@
 import os
+import bcrypt
 from datetime import datetime, timedelta
 from typing import Optional
 from dotenv import load_dotenv
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 
 from database import get_db
@@ -28,15 +28,27 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 1 day
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Using bcrypt directly rather than passlib's CryptContext: passlib 1.7.4
+# (unmaintained since 2020) crashes against bcrypt>=4.1, which removed the
+# `__about__` attribute passlib probes for at import time. Calling bcrypt
+# ourselves sidesteps that broken compatibility shim entirely. Password
+# hashes produced by passlib's bcrypt backend are standard bcrypt hashes, so
+# this is a drop-in swap — no need to re-hash existing passwords.
+BCRYPT_MAX_BYTES = 72  # bcrypt silently ignores anything past this
 
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    pw_bytes = password.encode("utf-8")[:BCRYPT_MAX_BYTES]
+    return bcrypt.hashpw(pw_bytes, bcrypt.gensalt()).decode("utf-8")
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
+    pw_bytes = plain.encode("utf-8")[:BCRYPT_MAX_BYTES]
+    try:
+        return bcrypt.checkpw(pw_bytes, hashed.encode("utf-8"))
+    except ValueError:
+        # Malformed/unrecognized hash (e.g. leftover non-bcrypt data).
+        return False
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
