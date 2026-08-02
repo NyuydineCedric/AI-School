@@ -1,8 +1,9 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { GraduationCap, Eye, AlertCircle } from "lucide-react";
 import { login } from "../lib/api";
 import { saveSession } from "../lib/auth";
+import AuthIllustration from "../components/AuthIllustration";
 
 type LoginRole = "teacher" | "student" | "admin";
 
@@ -12,13 +13,13 @@ const DEMO_CREDENTIALS: Record<
 > = {
   teacher: { email: "dr.smith@smartschool.ai", password: "teacher123" },
   student: { email: "cedric@smartschool.ai", password: "student123" },
-  admin: null, // no admin account seeded yet
+  admin: { email: "admin@smartschool.ai", password: "admin123" },
 };
 
 const ROLE_HOME: Record<string, string> = {
   teacher: "/teacher/dashboard",
   student: "/student/dashboard",
-  admin: "/teacher/dashboard",
+  admin: "/admin/users",
 };
 
 const LoginPage: React.FC = () => {
@@ -58,15 +59,14 @@ const LoginPage: React.FC = () => {
 
   return (
     <div className="min-h-screen grid md:grid-cols-2 bg-white">
-      <div className="hidden md:flex flex-col items-center justify-center bg-indigo-50/60 relative overflow-hidden">
+      <div className="hidden md:flex flex-col items-center justify-center bg-indigo-50/60 relative overflow-hidden px-10">
         <div className="absolute top-10 left-10 flex items-center gap-2">
           <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center">
             <GraduationCap size={18} className="text-white" />
           </div>
           <span className="font-semibold text-slate-800">Smart School AI</span>
         </div>
-        <div className="w-40 h-56 bg-indigo-600 rounded-full opacity-90" />
-        <div className="w-48 h-32 bg-white rounded-xl shadow-lg absolute bottom-24 left-16 border border-slate-200" />
+        <AuthIllustration />
       </div>
 
       <div className="flex flex-col items-center justify-center px-8">
@@ -98,6 +98,10 @@ const LoginPage: React.FC = () => {
             />
             <Eye size={16} className="absolute right-3 top-3 text-slate-400" />
           </div>
+          <p className="text-xs text-slate-400 mb-4">
+            Forgot your password? Ask your school admin to reset it from the
+            User Management page.
+          </p>
 
           {error && (
             <div className="flex items-center gap-2 text-sm text-rose-600 mb-4">
@@ -116,7 +120,7 @@ const LoginPage: React.FC = () => {
           <p className="text-center text-xs text-slate-400 mb-3">
             Login as (demo accounts)
           </p>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-3 gap-3 mb-6">
             {(["teacher", "student", "admin"] as LoginRole[]).map((r) => (
               <button
                 type="button"
@@ -133,6 +137,13 @@ const LoginPage: React.FC = () => {
               </button>
             ))}
           </div>
+
+          <p className="text-center text-sm text-slate-500">
+            New student?{" "}
+            <Link to="/register" className="text-indigo-600 font-medium">
+              Create an account
+            </Link>
+          </p>
         </form>
       </div>
     </div>

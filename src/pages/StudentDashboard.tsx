@@ -31,7 +31,7 @@ const StudentDashboard: React.FC = () => {
       <Sidebar role="student" active="dashboard" />
       <main className="flex-1 overflow-y-auto p-6">
         <TopHeader
-          greeting={`Welcome back, ${getName() ?? "there"}! 👋`}
+          greeting={`Welcome back, ${getName() ?? "there"}!`}
           subtitle="Here's what's happening today."
           avatarInitial={(getName() ?? "S").charAt(0)}
         />
@@ -118,7 +118,27 @@ const StudentDashboard: React.FC = () => {
                   <p className="text-sm text-slate-600">{a}</p>
                 </div>
               ))}
-              {(!data || data.recent_activities.length === 0) && (
+              {(data?.teacher_updates ?? []).map((update: any) => (
+                <div key={update.id} className="flex items-start gap-3">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mt-2" />
+                  <div>
+                    <p className="text-sm text-slate-700 font-medium">
+                      {update.title}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      {update.type} • {update.detail}
+                    </p>
+                    {update.course ? (
+                      <p className="text-[11px] text-slate-400 mt-1">
+                        {update.course}
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+              ))}
+              {(!data ||
+                (data.recent_activities.length === 0 &&
+                  (data.teacher_updates ?? []).length === 0)) && (
                 <p className="text-sm text-slate-400">No recent activity.</p>
               )}
             </div>

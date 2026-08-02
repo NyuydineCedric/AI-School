@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import Sidebar from "../components/Sidebar";
 import TopHeader from "../components/TopHeader";
 import StatCard from "../components/StatCard";
+import { Link } from "react-router-dom";
 import { getTeacherDashboard } from "../lib/api";
 import { getName } from "../lib/auth";
 
@@ -19,7 +20,7 @@ const TeacherDashboard: React.FC = () => {
       <Sidebar role="teacher" active="dashboard" />
       <main className="flex-1 overflow-y-auto p-6">
         <TopHeader
-          greeting={`Welcome back, ${getName() ?? "there"}! 👋`}
+          greeting={`Welcome back, ${getName() ?? "there"}!`}
           subtitle="Here's an overview of your classes."
           avatarInitial={(getName() ?? "T").charAt(0)}
         />

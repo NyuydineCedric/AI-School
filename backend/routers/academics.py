@@ -9,11 +9,37 @@ import json
 from database import get_db
 import models
 from auth import get_current_user, require_role
+from dashboard_utils import build_student_updates, build_teacher_updates
 
 router = APIRouter(tags=["academics"])
 
 
 # ---------- Courses ----------
+class CourseCreate(BaseModel):
+    name: str
+    color: str = "bg-indigo-100"
+
+
+@router.post("/courses")
+def create_course(payload: CourseCreate, db: Session = Depends(get_db), user: models.User = Depends(require_role("teacher"))):
+    course = models.Course(name=payload.name, instructor_id=user.id, color=payload.color)
+    db.add(course)
+    db.commit()
+    db.refresh(course)
+
+    students = db.query(models.User).filter(models.User.role == "student").all()
+    for student in students:
+        existing = (
+            db.query(models.Enrollment)
+            .filter(models.Enrollment.student_id == student.id, models.Enrollment.course_id == course.id)
+            .first()
+        )
+        if not existing:
+            db.add(models.Enrollment(student_id=student.id, course_id=course.id, progress=0))
+    db.commit()
+    return {"id": course.id, "name": course.name, "color": course.color, "students": len(students), "avg": "0%"}
+
+
 @router.get("/courses")
 def list_courses(db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
     if user.role == "teacher":
@@ -42,6 +68,33 @@ def list_courses(db: Session = Depends(get_db), user: models.User = Depends(get_
 
 
 # ---------- Assignments ----------
+class AssignmentCreate(BaseModel):
+    course_id: str
+    title: str
+    instructions: str
+    due_date: Optional[datetime] = None
+    max_marks: int = 20
+
+
+@router.post("/assignments")
+def create_assignment(payload: AssignmentCreate, db: Session = Depends(get_db), user: models.User = Depends(require_role("teacher"))):
+    course = db.query(models.Course).filter(models.Course.id == payload.course_id).first()
+    if not course or course.instructor_id != user.id:
+        raise HTTPException(status_code=404, detail="Course not found")
+
+    assignment = models.Assignment(
+        course_id=payload.course_id,
+        title=payload.title,
+        instructions=payload.instructions,
+        due_date=payload.due_date,
+        max_marks=payload.max_marks,
+    )
+    db.add(assignment)
+    db.commit()
+    db.refresh(assignment)
+    return {"id": assignment.id, "title": assignment.title, "due_date": assignment.due_date, "max_marks": assignment.max_marks}
+
+
 class SubmitAssignmentRequest(BaseModel):
     content: str
 
@@ -52,7 +105,14 @@ def list_assignments(db: Session = Depends(get_db), user: models.User = Depends(
     if user.role == "teacher":
         course_ids = [c.id for c in db.query(models.Course).filter(models.Course.instructor_id == user.id)]
         assignments = db.query(models.Assignment).filter(models.Assignment.course_id.in_(course_ids)).all()
-        return [{"id": a.id, "title": a.title, "due_date": a.due_date, "max_marks": a.max_marks} for a in assignments]
+        result = []
+        for a in assignments:
+            course = db.query(models.Course).filter(models.Course.id == a.course_id).first()
+            result.append({
+                "id": a.id, "title": a.title, "due_date": a.due_date, "max_marks": a.max_marks,
+                "course_id": a.course_id, "course_name": course.name if course else "",
+            })
+        return result
 
     course_ids = [e.course_id for e in db.query(models.Enrollment).filter(models.Enrollment.student_id == user.id)]
     assignments = db.query(models.Assignment).filter(models.Assignment.course_id.in_(course_ids)).all()
@@ -62,10 +122,14 @@ def list_assignments(db: Session = Depends(get_db), user: models.User = Depends(
         sub = db.query(models.Submission).filter(
             models.Submission.assignment_id == a.id, models.Submission.student_id == user.id
         ).first()
+        course = db.query(models.Course).filter(models.Course.id == a.course_id).first()
         result.append({
             "id": a.id, "title": a.title, "instructions": a.instructions,
             "due_date": a.due_date, "max_marks": a.max_marks,
-            "status": sub.status if sub else "Not Submitted",
+            "course_id": a.course_id, "course_name": course.name if course else "",
+            # Nested to match get_assignment()'s shape so the frontend can
+            # read assignment.submission?.status consistently everywhere.
+            "submission": {"status": sub.status, "content": sub.content} if sub else None,
         })
     return result
 
@@ -78,9 +142,11 @@ def get_assignment(assignment_id: str, db: Session = Depends(get_db), user: mode
     sub = db.query(models.Submission).filter(
         models.Submission.assignment_id == a.id, models.Submission.student_id == user.id
     ).first()
+    course = db.query(models.Course).filter(models.Course.id == a.course_id).first()
     return {
         "id": a.id, "title": a.title, "instructions": a.instructions,
         "due_date": a.due_date, "max_marks": a.max_marks,
+        "course_id": a.course_id, "course_name": course.name if course else "",
         "submission": {"status": sub.status, "content": sub.content} if sub else None,
     }
 
@@ -104,7 +170,111 @@ def submit_assignment(
     return {"status": "Submitted"}
 
 
+class AssignmentMarkRequest(BaseModel):
+    score: str
+    feedback: Optional[str] = None
+
+
+@router.get("/assignments/{assignment_id}/submissions")
+def list_assignment_submissions(
+    assignment_id: str,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_role("teacher")),
+):
+    assignment = db.query(models.Assignment).filter(models.Assignment.id == assignment_id).first()
+    if not assignment:
+        raise HTTPException(status_code=404, detail="Assignment not found")
+
+    course = db.query(models.Course).filter(models.Course.id == assignment.course_id).first()
+    if not course or course.instructor_id != user.id:
+        raise HTTPException(status_code=404, detail="Assignment not found")
+
+    submissions = db.query(models.Submission).filter(models.Submission.assignment_id == assignment_id).all()
+    result = []
+    for sub in submissions:
+        student = db.query(models.User).filter(models.User.id == sub.student_id).first()
+        result.append({
+            "id": sub.id,
+            "student_name": student.name if student else "Student",
+            "student_id": sub.student_id,
+            "content": sub.content,
+            "status": sub.status,
+            "score": sub.score,
+            "feedback": sub.feedback,
+        })
+    return result
+
+
+@router.post("/assignments/{assignment_id}/submissions/{submission_id}/mark")
+def mark_assignment_submission(
+    assignment_id: str,
+    submission_id: str,
+    payload: AssignmentMarkRequest,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_role("teacher")),
+):
+    assignment = db.query(models.Assignment).filter(models.Assignment.id == assignment_id).first()
+    if not assignment:
+        raise HTTPException(status_code=404, detail="Assignment not found")
+
+    course = db.query(models.Course).filter(models.Course.id == assignment.course_id).first()
+    if not course or course.instructor_id != user.id:
+        raise HTTPException(status_code=404, detail="Assignment not found")
+
+    submission = db.query(models.Submission).filter(models.Submission.id == submission_id).first()
+    if not submission or submission.assignment_id != assignment_id:
+        raise HTTPException(status_code=404, detail="Submission not found")
+
+    submission.score = payload.score
+    submission.feedback = payload.feedback
+    db.commit()
+    return {"saved": True}
+
+
 # ---------- Quizzes ----------
+class QuizQuestionCreate(BaseModel):
+    text: str
+    option_a: str
+    option_b: str
+    option_c: str
+    option_d: str
+    correct_option: str
+    marks: int = 2
+
+
+class QuizCreate(BaseModel):
+    course_id: str
+    title: str
+    duration_minutes: int = 30
+    questions: List[QuizQuestionCreate] = []
+
+
+@router.post("/quizzes")
+def create_quiz(payload: QuizCreate, db: Session = Depends(get_db), user: models.User = Depends(require_role("teacher"))):
+    course = db.query(models.Course).filter(models.Course.id == payload.course_id).first()
+    if not course or course.instructor_id != user.id:
+        raise HTTPException(status_code=404, detail="Course not found")
+
+    quiz = models.Quiz(course_id=payload.course_id, title=payload.title, duration_minutes=payload.duration_minutes)
+    db.add(quiz)
+    db.commit()
+    db.refresh(quiz)
+
+    for question in payload.questions:
+        db.add(models.QuizQuestion(
+            quiz_id=quiz.id,
+            text=question.text,
+            option_a=question.option_a,
+            option_b=question.option_b,
+            option_c=question.option_c,
+            option_d=question.option_d,
+            correct_option=question.correct_option,
+            marks=question.marks,
+        ))
+    db.commit()
+    return {"id": quiz.id, "title": quiz.title, "duration_minutes": quiz.duration_minutes, "questions": payload.questions}
+
+
 @router.get("/quizzes/{quiz_id}")
 def get_quiz(quiz_id: str, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
     quiz = db.query(models.Quiz).filter(models.Quiz.id == quiz_id).first()
@@ -148,7 +318,89 @@ def submit_quiz(
     return {"score_pct": score_pct, "earned": earned, "total": total_marks}
 
 
+@router.get("/quizzes/{quiz_id}/attempts")
+def list_quiz_attempts(
+    quiz_id: str,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_role("teacher")),
+):
+    quiz = db.query(models.Quiz).filter(models.Quiz.id == quiz_id).first()
+    if not quiz:
+        raise HTTPException(status_code=404, detail="Quiz not found")
+
+    course = db.query(models.Course).filter(models.Course.id == quiz.course_id).first()
+    if not course or course.instructor_id != user.id:
+        raise HTTPException(status_code=404, detail="Quiz not found")
+
+    attempts = db.query(models.QuizAttempt).filter(models.QuizAttempt.quiz_id == quiz_id).all()
+    result = []
+    for attempt in attempts:
+        student = db.query(models.User).filter(models.User.id == attempt.student_id).first()
+        result.append({
+            "id": attempt.id,
+            "student_name": student.name if student else "Student",
+            "score": attempt.score,
+            "answers_json": attempt.answers_json,
+            "submitted": attempt.submitted,
+        })
+    return result
+
+
+class QuizScoreUpdateRequest(BaseModel):
+    score: float
+
+
+@router.post("/quizzes/{quiz_id}/attempts/{attempt_id}/score")
+def update_quiz_attempt_score(
+    quiz_id: str,
+    attempt_id: str,
+    payload: QuizScoreUpdateRequest,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_role("teacher")),
+):
+    quiz = db.query(models.Quiz).filter(models.Quiz.id == quiz_id).first()
+    if not quiz:
+        raise HTTPException(status_code=404, detail="Quiz not found")
+
+    course = db.query(models.Course).filter(models.Course.id == quiz.course_id).first()
+    if not course or course.instructor_id != user.id:
+        raise HTTPException(status_code=404, detail="Quiz not found")
+
+    attempt = db.query(models.QuizAttempt).filter(models.QuizAttempt.id == attempt_id).first()
+    if not attempt or attempt.quiz_id != quiz_id:
+        raise HTTPException(status_code=404, detail="Attempt not found")
+
+    attempt.score = payload.score
+    db.commit()
+    return {"saved": True}
+
+
 # ---------- Exams ----------
+class ExamCreate(BaseModel):
+    course_id: str
+    title: str
+    instructions: str
+    duration_minutes: int = 120
+
+
+@router.post("/exams")
+def create_exam(payload: ExamCreate, db: Session = Depends(get_db), user: models.User = Depends(require_role("teacher"))):
+    course = db.query(models.Course).filter(models.Course.id == payload.course_id).first()
+    if not course or course.instructor_id != user.id:
+        raise HTTPException(status_code=404, detail="Course not found")
+
+    exam = models.Exam(
+        course_id=payload.course_id,
+        title=payload.title,
+        instructions=payload.instructions,
+        duration_minutes=payload.duration_minutes,
+    )
+    db.add(exam)
+    db.commit()
+    db.refresh(exam)
+    return {"id": exam.id, "title": exam.title, "instructions": exam.instructions, "duration_minutes": exam.duration_minutes}
+
+
 @router.get("/exams/{exam_id}")
 def get_exam(exam_id: str, db: Session = Depends(get_db)):
     exam = db.query(models.Exam).filter(models.Exam.id == exam_id).first()
@@ -176,6 +428,65 @@ def save_exam_answer(
         answer = models.ExamAnswer(exam_id=exam_id, student_id=user.id)
         db.add(answer)
     answer.answer_text = payload.answer_text
+    db.commit()
+    return {"saved": True}
+
+
+@router.get("/exams/{exam_id}/answers")
+def list_exam_answers(
+    exam_id: str,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_role("teacher")),
+):
+    exam = db.query(models.Exam).filter(models.Exam.id == exam_id).first()
+    if not exam:
+        raise HTTPException(status_code=404, detail="Exam not found")
+
+    course = db.query(models.Course).filter(models.Course.id == exam.course_id).first()
+    if not course or course.instructor_id != user.id:
+        raise HTTPException(status_code=404, detail="Exam not found")
+
+    answers = db.query(models.ExamAnswer).filter(models.ExamAnswer.exam_id == exam_id).all()
+    result = []
+    for answer in answers:
+        student = db.query(models.User).filter(models.User.id == answer.student_id).first()
+        result.append({
+            "id": answer.id,
+            "student_name": student.name if student else "Student",
+            "answer_text": answer.answer_text,
+            "score": answer.score,
+            "feedback": answer.feedback,
+        })
+    return result
+
+
+class ExamAnswerMarkRequest(BaseModel):
+    score: str
+    feedback: Optional[str] = None
+
+
+@router.post("/exams/{exam_id}/answers/{answer_id}/mark")
+def mark_exam_answer(
+    exam_id: str,
+    answer_id: str,
+    payload: ExamAnswerMarkRequest,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_role("teacher")),
+):
+    exam = db.query(models.Exam).filter(models.Exam.id == exam_id).first()
+    if not exam:
+        raise HTTPException(status_code=404, detail="Exam not found")
+
+    course = db.query(models.Course).filter(models.Course.id == exam.course_id).first()
+    if not course or course.instructor_id != user.id:
+        raise HTTPException(status_code=404, detail="Exam not found")
+
+    answer = db.query(models.ExamAnswer).filter(models.ExamAnswer.id == answer_id).first()
+    if not answer or answer.exam_id != exam_id:
+        raise HTTPException(status_code=404, detail="Answer not found")
+
+    answer.score = payload.score
+    answer.feedback = payload.feedback
     db.commit()
     return {"saved": True}
 
@@ -241,9 +552,8 @@ def list_students(db: Session = Depends(get_db), user: models.User = Depends(req
         records = db.query(models.AttendanceRecord).filter(models.AttendanceRecord.student_id == s.id).all()
         present = sum(1 for r in records if r.status == "Present")
         pct = round((present / len(records)) * 100) if records else 0
-        result.append({"name": s.name, "attendance": f"{pct}%", "grade": latest_grade})
+        result.append({"id": s.id, "name": s.name, "attendance": f"{pct}%", "grade": latest_grade})
     return result
-    result.append({"id": s.id, "name": s.name, "attendance": f"{pct}%", "grade": latest_grade})
 
 
 # ---------- Question bank ----------
@@ -367,6 +677,18 @@ def student_dashboard(db: Session = Depends(get_db), user: models.User = Depends
         .limit(3)
         .all()
     )
+    announcements = (
+        db.query(models.Announcement)
+        .order_by(models.Announcement.created_at.desc())
+        .limit(5)
+        .all()
+    )
+    shared_notes = (
+        db.query(models.SharedNote)
+        .order_by(models.SharedNote.created_at.desc())
+        .limit(5)
+        .all()
+    )
 
     return {
         "name": user.name,
@@ -379,6 +701,7 @@ def student_dashboard(db: Session = Depends(get_db), user: models.User = Depends
         "gpa_letter": letter,
         "attendance_pct": attendance_pct,
         "recent_activities": [n.text for n in notifications],
+        "teacher_updates": build_student_updates(announcements, shared_notes),
     }
 
 

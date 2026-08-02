@@ -15,6 +15,7 @@ class User(Base):
     email = Column(String, unique=True, nullable=False, index=True)
     hashed_password = Column(String, nullable=False)
     role = Column(String, nullable=False)  # student | teacher | admin
+    bio = Column(Text, nullable=True, default="")
 
 
 class Course(Base):
@@ -101,6 +102,8 @@ class ExamAnswer(Base):
     exam_id = Column(String, ForeignKey("exams.id"))
     student_id = Column(String, ForeignKey("users.id"))
     answer_text = Column(Text)
+    score = Column(String, default="-")
+    feedback = Column(Text, nullable=True)
 
 
 class Grade(Base):
@@ -126,6 +129,15 @@ class Note(Base):
     __tablename__ = "notes"
     id = Column(String, primary_key=True, default=gen_id)
     student_id = Column(String, ForeignKey("users.id"))
+    course_name = Column(String)
+    content = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class SharedNote(Base):
+    __tablename__ = "shared_notes"
+    id = Column(String, primary_key=True, default=gen_id)
+    author_id = Column(String, ForeignKey("users.id"))
     course_name = Column(String)
     content = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)

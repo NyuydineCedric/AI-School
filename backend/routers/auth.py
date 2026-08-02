@@ -49,11 +49,18 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
     return TokenResponse(access_token=token, role=user.role, name=user.name, user_id=user.id)
 
 
-# NOTE: open registration is convenient for a demo — lock this down (admin-only,
-# or remove entirely and only create accounts via the seed script) before
-# this goes anywhere near production.
+# Public self-registration is limited to students. Teacher/admin accounts are
+# higher-privilege (can create courses, grade, message every student, etc.)
+# and shouldn't be self-service — create those via the seed script or have an
+# existing admin add them.
 @router.post("/register", response_model=TokenResponse)
 def register(payload: RegisterRequest, db: Session = Depends(get_db)):
+    if payload.role != "student":
+        raise HTTPException(
+            status_code=403,
+            detail="Public registration is only available for student accounts.",
+        )
+
     existing = db.query(models.User).filter(models.User.email == payload.email).first()
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -62,7 +69,7 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
         name=payload.name,
         email=payload.email,
         hashed_password=hash_password(payload.password),
-        role=payload.role,
+        role="student",
     )
     db.add(user)
     db.commit()
@@ -74,4 +81,61 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
 
 @router.get("/me")
 def me(user: models.User = Depends(get_current_user)):
-    return {"id": user.id, "name": user.name, "email": user.email, "role": user.role}
+    return {
+        "id": user.id, "name": user.name, "email": user.email,
+        "role": user.role, "bio": user.bio or "",
+    }
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
+@router.post("/change-password")
+def change_password(
+    payload: ChangePasswordRequest,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
+):
+    if not verify_password(payload.current_password, user.hashed_password):
+        raise HTTPException(status_code=400, detail="Current password is incorrect.")
+    if len(payload.new_password) < 8:
+        raise HTTPException(status_code=400, detail="New password must be at least 8 characters.")
+
+    user.hashed_password = hash_password(payload.new_password)
+    db.commit()
+    return {"saved": True}
+
+
+class UpdateProfileRequest(BaseModel):
+    name: str
+    email: str
+    bio: str = ""
+
+
+@router.post("/profile")
+def update_profile(
+    payload: UpdateProfileRequest,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
+):
+    if not payload.name.strip() or not payload.email.strip():
+        raise HTTPException(status_code=400, detail="Name and email are required.")
+
+    existing = (
+        db.query(models.User)
+        .filter(models.User.email == payload.email, models.User.id != user.id)
+        .first()
+    )
+    if existing:
+        raise HTTPException(status_code=400, detail="That email is already in use.")
+
+    user.name = payload.name.strip()
+    user.email = payload.email.strip()
+    user.bio = payload.bio.strip()
+    db.commit()
+    return {
+        "id": user.id, "name": user.name, "email": user.email,
+        "role": user.role, "bio": user.bio or "",
+    }

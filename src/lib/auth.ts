@@ -18,6 +18,10 @@ export const getName = () => localStorage.getItem(NAME_KEY);
 export const getUserId = () => localStorage.getItem(USER_ID_KEY);
 export const isLoggedIn = () => !!getToken();
 
+export function updateStoredName(name: string) {
+  localStorage.setItem(NAME_KEY, name);
+}
+
 export function clearSession() {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(ROLE_KEY);

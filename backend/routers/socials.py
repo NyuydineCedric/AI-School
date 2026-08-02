@@ -17,11 +17,6 @@ class NoteCreate(BaseModel):
 
 @router.get("/notes")
 def list_notes(db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
-    return db.query(models.Note).filter(models.Note.student_id == user.id).order_by(models.Note.created_at.desc()).all()
-
-
-@router.get("/notes")
-def list_notes(db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
     notes = db.query(models.Note).filter(models.Note.student_id == user.id).order_by(models.Note.created_at.desc()).all()
     return [{"id": n.id, "course_name": n.course_name, "content": n.content, "created_at": n.created_at} for n in notes]
 
@@ -35,45 +30,93 @@ def add_note(payload: NoteCreate, db: Session = Depends(get_db), user: models.Us
     return {"id": note.id, "course_name": note.course_name, "content": note.content, "created_at": note.created_at}
 
 
-# ---------- Conversations / Messages ----------
-@router.get("/conversations/{conversation_id}/messages")
-def get_messages(conversation_id: str, db: Session = Depends(get_db)):
-    messages = db.query(models.Message).filter(models.Message.conversation_id == conversation_id).order_by(models.Message.created_at).all()
-    return [{"id": m.id, "sender_id": m.sender_id, "text": m.text, "created_at": m.created_at} for m in messages]
+@router.get("/shared-notes")
+def list_shared_notes(db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
+    items = db.query(models.SharedNote).order_by(models.SharedNote.created_at.desc()).all()
+    return [{"id": n.id, "course_name": n.course_name, "content": n.content, "created_at": n.created_at} for n in items]
 
 
-@router.post("/conversations/{conversation_id}/messages")
-def send_message(conversation_id: str, payload: SendMessageRequest, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
-    message = models.Message(conversation_id=conversation_id, sender_id=user.id, text=payload.text)
-    db.add(message)
+@router.post("/shared-notes")
+def create_shared_note(payload: NoteCreate, db: Session = Depends(get_db), user: models.User = Depends(require_role("teacher"))):
+    note = models.SharedNote(author_id=user.id, course_name=payload.course_name, content=payload.content)
+    db.add(note)
     db.commit()
-    db.refresh(message)
-    return {"id": message.id, "sender_id": message.sender_id, "text": message.text, "created_at": message.created_at}
+    db.refresh(note)
+    return {"id": note.id, "course_name": note.course_name, "content": note.content, "created_at": note.created_at}
+
+
+# ---------- Conversations / Messages ----------
+class SendMessageRequest(BaseModel):
+    text: str
+
+
+@router.get("/conversations")
+def list_conversations(db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
+    if user.role == "student":
+        teacher = db.query(models.User).filter(models.User.role == "teacher").first()
+        if not teacher:
+            return []
+        conversation = (
+            db.query(models.Conversation)
+            .join(models.ConversationParticipant)
+            .filter(models.ConversationParticipant.user_id == user.id)
+            .filter(models.Conversation.id.in_(
+                db.query(models.ConversationParticipant.conversation_id).filter(models.ConversationParticipant.user_id == teacher.id)
+            ))
+            .first()
+        )
+        if not conversation:
+            conversation = models.Conversation(name=f"{user.name} ↔ {teacher.name}")
+            db.add(conversation)
+            db.commit()
+            db.refresh(conversation)
+            db.add_all([
+                models.ConversationParticipant(conversation_id=conversation.id, user_id=user.id),
+                models.ConversationParticipant(conversation_id=conversation.id, user_id=teacher.id),
+            ])
+            db.commit()
+        return [{"id": conversation.id, "name": conversation.name, "last_message": ""}]
+
+    conversations = (
+        db.query(models.Conversation)
+        .join(models.ConversationParticipant)
+        .filter(models.ConversationParticipant.user_id == user.id)
+        .all()
+    )
+    return [{"id": c.id, "name": c.name, "last_message": ""} for c in conversations]
+
 
 @router.get("/conversations/{conversation_id}/messages")
-def get_messages(conversation_id: str, db: Session = Depends(get_db)):
-    return (
+def get_messages(conversation_id: str, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
+    conversation = db.query(models.Conversation).filter(models.Conversation.id == conversation_id).first()
+    if not conversation:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+    messages = (
         db.query(models.Message)
         .filter(models.Message.conversation_id == conversation_id)
         .order_by(models.Message.created_at)
         .all()
     )
-
-
-class SendMessageRequest(BaseModel):
-    text: str
+    return [{"id": m.id, "sender_id": m.sender_id, "text": m.text, "created_at": m.created_at} for m in messages]
 
 
 @router.post("/conversations/{conversation_id}/messages")
 def send_message(
-    conversation_id: str, payload: SendMessageRequest,
-    db: Session = Depends(get_db), user: models.User = Depends(get_current_user),
+    conversation_id: str,
+    payload: SendMessageRequest,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
 ):
+    conversation = db.query(models.Conversation).filter(models.Conversation.id == conversation_id).first()
+    if not conversation:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
     message = models.Message(conversation_id=conversation_id, sender_id=user.id, text=payload.text)
     db.add(message)
     db.commit()
     db.refresh(message)
-    return message
+    return {"id": message.id, "sender_id": message.sender_id, "text": message.text, "created_at": message.created_at}
 
 
 # ---------- Notifications ----------

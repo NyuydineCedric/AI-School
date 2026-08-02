@@ -4,10 +4,15 @@ import ProtectedRoute from "./components/ProtectedRoute";
 
 import LandingPage from "./pages/LandingPage";
 import LoginPage from "./pages/LoginPage";
+import RegisterPage from "./pages/RegisterPage";
 import StudentDashboard from "./pages/StudentDashboard";
 import CoursesPage from "./pages/CoursesPage";
+import StudentCourseDetailPage from "./pages/StudentCourseDetailPage";
+import StudentAssignmentsPage from "./pages/StudentAssignmentsPage";
 import AssignmentDetails from "./pages/AssignmentDetails";
+import StudentQuizzesPage from "./pages/StudentQuizzesPage";
 import QuizPage from "./pages/QuizPage";
+import StudentExamsPage from "./pages/StudentExamsPage";
 import ExamPage from "./pages/ExamPage";
 import GradesPage from "./pages/GradesPage";
 import AITutorPage from "./pages/AITutorPage";
@@ -22,12 +27,16 @@ import NotificationsPage from "./pages/NotificationsPage";
 import ProfilePage from "./pages/ProfilePage";
 import SettingsPage from "./pages/SettingsPage";
 import TeacherCoursesPage from "./pages/TeacherCoursesPage";
+import TeacherCourseDetailPage from "./pages/TeacherCourseDetailPage";
 import StudentsPage from "./pages/StudentsPage";
 import TeacherAssignmentsPage from "./pages/TeacherAssignmentsPage";
 import TeacherQuizzesPage from "./pages/TeacherQuizzesPage";
+import TeacherExamsPage from "./pages/TeacherExamsPage";
 import QuestionBankPage from "./pages/QuestionBankPage";
 import AnalyticsPage from "./pages/AnalyticsPage";
 import AnnouncementsPage from "./pages/AnnouncementsPage";
+import TeacherReviewPage from "./pages/TeacherReviewPage";
+import AdminUsersPage from "./pages/AdminUsersPage";
 
 const App: React.FC = () => {
   return (
@@ -35,6 +44,7 @@ const App: React.FC = () => {
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
 
         {/* Student */}
         <Route
@@ -54,6 +64,22 @@ const App: React.FC = () => {
           }
         />
         <Route
+          path="/student/courses/:id"
+          element={
+            <ProtectedRoute allow={["student"]}>
+              <StudentCourseDetailPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/student/assignments"
+          element={
+            <ProtectedRoute allow={["student"]}>
+              <StudentAssignmentsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/student/assignments/:id"
           element={
             <ProtectedRoute allow={["student"]}>
@@ -62,10 +88,26 @@ const App: React.FC = () => {
           }
         />
         <Route
+          path="/student/quizzes"
+          element={
+            <ProtectedRoute allow={["student"]}>
+              <StudentQuizzesPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/student/quizzes/:id"
           element={
             <ProtectedRoute allow={["student"]}>
               <QuizPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/student/exams"
+          element={
+            <ProtectedRoute allow={["student"]}>
+              <StudentExamsPage />
             </ProtectedRoute>
           }
         />
@@ -184,6 +226,14 @@ const App: React.FC = () => {
           }
         />
         <Route
+          path="/teacher/courses/:id"
+          element={
+            <ProtectedRoute allow={["teacher", "admin"]}>
+              <TeacherCourseDetailPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/teacher/students"
           element={
             <ProtectedRoute allow={["teacher", "admin"]}>
@@ -204,6 +254,14 @@ const App: React.FC = () => {
           element={
             <ProtectedRoute allow={["teacher", "admin"]}>
               <TeacherQuizzesPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/teacher/exams"
+          element={
+            <ProtectedRoute allow={["teacher", "admin"]}>
+              <TeacherExamsPage />
             </ProtectedRoute>
           }
         />
@@ -240,6 +298,14 @@ const App: React.FC = () => {
           }
         />
         <Route
+          path="/teacher/review"
+          element={
+            <ProtectedRoute allow={["teacher", "admin"]}>
+              <TeacherReviewPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/teacher/messages"
           element={
             <ProtectedRoute allow={["teacher", "admin"]}>
@@ -252,6 +318,16 @@ const App: React.FC = () => {
           element={
             <ProtectedRoute allow={["teacher", "admin"]}>
               <SettingsPage role="teacher" />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Admin */}
+        <Route
+          path="/admin/users"
+          element={
+            <ProtectedRoute allow={["admin"]}>
+              <AdminUsersPage />
             </ProtectedRoute>
           }
         />

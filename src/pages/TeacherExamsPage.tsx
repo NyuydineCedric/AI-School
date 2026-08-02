@@ -2,76 +2,58 @@ import React, { useEffect, useState } from "react";
 import Sidebar from "../components/Sidebar";
 import { Link } from "react-router-dom";
 import { AlertCircle } from "lucide-react";
-import { createAssignment, getAssignments, getCourses } from "../lib/api";
+import { createExam, getCourses, getExams } from "../lib/api";
 
-interface Assignment {
-  id: string;
-  title: string;
-  due_date: string;
-  max_marks: number;
-}
-
-const TeacherAssignmentsPage: React.FC = () => {
-  const [assignments, setAssignments] = useState<Assignment[]>([]);
+const TeacherExamsPage: React.FC = () => {
+  const [exams, setExams] = useState<any[]>([]);
   const [courses, setCourses] = useState<any[]>([]);
   const [courseId, setCourseId] = useState("");
   const [title, setTitle] = useState("");
   const [instructions, setInstructions] = useState("");
-  const [dueDate, setDueDate] = useState("");
-  const [maxMarks, setMaxMarks] = useState(20);
+  const [duration, setDuration] = useState(120);
   const [error, setError] = useState<string | null>(null);
 
-  const reload = () => {
-    getAssignments()
-      .then(setAssignments)
+  const load = () => {
+    getExams()
+      .then(setExams)
       .catch((err) =>
-        setError(
-          err instanceof Error ? err.message : "Failed to load assignments.",
-        ),
+        setError(err instanceof Error ? err.message : "Failed to load exams."),
       );
     getCourses()
       .then(setCourses)
       .catch((err) =>
-        setError(
-          err instanceof Error ? err.message : "Failed to load courses.",
-        ),
+        setError(err instanceof Error ? err.message : "Failed to load courses."),
       );
   };
 
   useEffect(() => {
-    reload();
+    load();
   }, []);
 
   const handleCreate = async () => {
     if (!courseId || !title.trim() || !instructions.trim()) return;
     setError(null);
     try {
-      const created = await createAssignment(
+      const created = await createExam(
         courseId,
         title.trim(),
         instructions.trim(),
-        dueDate || undefined,
-        maxMarks,
+        duration,
       );
-      setAssignments((prev) => [created, ...prev]);
+      setExams((prev) => [created, ...prev]);
       setTitle("");
       setInstructions("");
-      setDueDate("");
-      setMaxMarks(20);
+      setDuration(120);
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to publish assignment.",
-      );
+      setError(err instanceof Error ? err.message : "Failed to publish exam.");
     }
   };
 
   return (
     <div className="flex h-screen bg-slate-50">
-      <Sidebar role="teacher" active="assignments" />
+      <Sidebar role="teacher" active="exams" />
       <main className="flex-1 overflow-y-auto p-6">
-        <h1 className="text-xl font-semibold text-slate-800 mb-5">
-          Assignments
-        </h1>
+        <h1 className="text-xl font-semibold text-slate-800 mb-5">Exams</h1>
         {error && (
           <div className="flex items-center gap-2 text-sm text-rose-600 mb-4 bg-rose-50 border border-rose-100 rounded-lg px-3 py-2">
             <AlertCircle size={15} /> {error}
@@ -94,7 +76,7 @@ const TeacherAssignmentsPage: React.FC = () => {
             <input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Assignment title"
+              placeholder="Exam title"
               className="border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none"
             />
             <textarea
@@ -104,15 +86,9 @@ const TeacherAssignmentsPage: React.FC = () => {
               className="col-span-2 border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none h-24"
             />
             <input
-              type="datetime-local"
-              value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
-              className="border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none"
-            />
-            <input
               type="number"
-              value={maxMarks}
-              onChange={(e) => setMaxMarks(Number(e.target.value))}
+              value={duration}
+              onChange={(e) => setDuration(Number(e.target.value))}
               className="border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none"
             />
           </div>
@@ -120,7 +96,7 @@ const TeacherAssignmentsPage: React.FC = () => {
             onClick={handleCreate}
             className="mt-4 bg-indigo-600 text-white text-sm font-medium px-4 py-2 rounded-lg"
           >
-            Publish Assignment
+            Publish Exam
           </button>
         </div>
         <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
@@ -128,23 +104,21 @@ const TeacherAssignmentsPage: React.FC = () => {
             <thead>
               <tr className="bg-slate-50 text-slate-500 text-xs">
                 <th className="text-left font-medium px-5 py-3">Title</th>
-                <th className="text-left font-medium px-5 py-3">Due</th>
-                <th className="text-left font-medium px-5 py-3">Max Marks</th>
+                <th className="text-left font-medium px-5 py-3">Course</th>
+                <th className="text-left font-medium px-5 py-3">Duration</th>
               </tr>
             </thead>
             <tbody>
-              {assignments.map((a) => (
-                <tr key={a.id} className="border-t border-slate-100">
-                  <td className="px-5 py-3 text-slate-700">{a.title}</td>
+              {exams.map((exam) => (
+                <tr key={exam.id} className="border-t border-slate-100">
+                  <td className="px-5 py-3 text-slate-700">{exam.title}</td>
+                  <td className="px-5 py-3 text-slate-600">{exam.course}</td>
                   <td className="px-5 py-3 text-slate-600">
-                    {a.due_date
-                      ? new Date(a.due_date).toLocaleDateString()
-                      : "-"}
+                    {exam.duration_minutes} mins
                   </td>
-                  <td className="px-5 py-3 text-slate-600">{a.max_marks}</td>
                   <td className="px-5 py-3">
                     <Link
-                      to={`/teacher/review?type=assignments&id=${a.id}`}
+                      to={`/teacher/review?type=exams&id=${exam.id}`}
                       className="text-sm text-indigo-600 font-medium"
                     >
                       Review
@@ -160,4 +134,4 @@ const TeacherAssignmentsPage: React.FC = () => {
   );
 };
 
-export default TeacherAssignmentsPage;
+export default TeacherExamsPage;

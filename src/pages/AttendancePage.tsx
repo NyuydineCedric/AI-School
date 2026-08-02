@@ -24,6 +24,7 @@ const AttendancePage: React.FC<{ role: Role }> = ({ role }) => {
   } | null>(null);
   const [roster, setRoster] = useState<StudentRow[]>([]);
   const [marks, setMarks] = useState<Record<string, "Present" | "Absent">>({});
+  const [courses, setCourses] = useState<{ id: string; name: string }[]>([]);
   const [courseId, setCourseId] = useState<string>("");
   const [saved, setSaved] = useState(false);
 
@@ -37,7 +38,10 @@ const AttendancePage: React.FC<{ role: Role }> = ({ role }) => {
         setRoster(students);
         setMarks(Object.fromEntries(students.map((s) => [s.id, "Present"])));
       });
-      getCourses().then((courses) => setCourseId(courses[0]?.id ?? ""));
+      getCourses().then((courseList) => {
+        setCourses(courseList);
+        setCourseId(courseList[0]?.id ?? "");
+      });
     }
   }, [role]);
 
@@ -107,8 +111,24 @@ const AttendancePage: React.FC<{ role: Role }> = ({ role }) => {
           </>
         ) : (
           <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-            <div className="px-5 py-3 border-b border-slate-100 font-semibold text-sm text-slate-800">
-              Today
+            <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between gap-3">
+              <span className="font-semibold text-sm text-slate-800">
+                Today
+              </span>
+              <select
+                value={courseId}
+                onChange={(e) => setCourseId(e.target.value)}
+                className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm outline-none"
+              >
+                {courses.length === 0 && (
+                  <option value="">No courses yet</option>
+                )}
+                {courses.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
             </div>
             <table className="w-full text-sm">
               <tbody>

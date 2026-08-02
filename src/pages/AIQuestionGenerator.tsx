@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import Sidebar from "../components/Sidebar";
-import { Sparkles, AlertCircle } from "lucide-react";
-import { streamChatMessage } from "../lib/api";
+import { Sparkles, AlertCircle, Check } from "lucide-react";
+import { streamChatMessage, addQuestionBankItem } from "../lib/api";
 
 const Field: React.FC<{ label: string; children: React.ReactNode }> = ({
   label,
@@ -30,6 +30,8 @@ const AIQuestionGenerator: React.FC = () => {
   const [preview, setPreview] = useState("");
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [added, setAdded] = useState(false);
 
   const handleGenerate = async () => {
     setGenerating(true);
@@ -55,6 +57,23 @@ const AIQuestionGenerator: React.FC = () => {
       );
     } finally {
       setGenerating(false);
+    }
+  };
+
+  const handleAddToBank = async () => {
+    if (!preview.trim()) return;
+    setAdding(true);
+    setError(null);
+    try {
+      await addQuestionBankItem(course, preview.trim(), difficulty);
+      setAdded(true);
+      setTimeout(() => setAdded(false), 2000);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to save to question bank.",
+      );
+    } finally {
+      setAdding(false);
     }
   };
 
@@ -171,10 +190,19 @@ const AIQuestionGenerator: React.FC = () => {
               )}
             </div>
             <button
-              disabled={!preview}
-              className="w-full bg-violet-600 text-white font-medium py-2.5 rounded-lg mt-4 disabled:opacity-50"
+              onClick={handleAddToBank}
+              disabled={!preview || generating || adding}
+              className="w-full flex items-center justify-center gap-2 bg-violet-600 text-white font-medium py-2.5 rounded-lg mt-4 disabled:opacity-50"
             >
-              Add to Question Bank
+              {added ? (
+                <>
+                  <Check size={15} /> Added ✓
+                </>
+              ) : adding ? (
+                "Saving…"
+              ) : (
+                "Add to Question Bank"
+              )}
             </button>
           </div>
         </div>

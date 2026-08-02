@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import Sidebar from "../components/Sidebar";
+import { Link, useParams } from "react-router-dom";
 import {
   ChevronLeft,
   Bot,
@@ -9,13 +10,16 @@ import {
   AlertCircle,
   X,
 } from "lucide-react";
-import { getAssignments, getAssignment, submitAssignment } from "../lib/api";
+import { getAssignment, submitAssignment } from "../lib/api";
 import { getToken } from "../lib/auth";
 
 const AssignmentDetails: React.FC = () => {
+  const { id } = useParams<{ id: string }>();
   const [assignment, setAssignment] = useState<any>(null);
+  const [work, setWork] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   // AI Tutor state
   const [showChat, setShowChat] = useState(false);
@@ -26,30 +30,35 @@ const AssignmentDetails: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    getAssignments()
-      .then(async (list) => {
-        if (list[0]) {
-          const detail = await getAssignment(list[0].id);
-          setAssignment(detail);
-        }
+    if (!id) {
+      setError("No assignment selected.");
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    getAssignment(id)
+      .then((detail) => {
+        setAssignment(detail);
+        setWork(detail?.submission?.content ?? "");
       })
       .catch((err) =>
         setError(
           err instanceof Error ? err.message : "Failed to load assignment.",
         ),
-      );
-  }, []);
+      )
+      .finally(() => setLoading(false));
+  }, [id]);
 
   const handleSubmit = async () => {
-    if (!assignment) return;
+    if (!assignment || !work.trim()) return;
     setSubmitting(true);
     try {
-      await submitAssignment(assignment.id, "Submitted via Smart School AI");
+      await submitAssignment(assignment.id, work.trim());
       setAssignment({
         ...assignment,
         submission: {
           status: "Submitted",
-          content: "Submitted via Smart School AI",
+          content: work.trim(),
         },
       });
     } catch (err) {
@@ -178,12 +187,16 @@ const AssignmentDetails: React.FC = () => {
     <div className="flex h-screen bg-slate-50">
       <Sidebar role="student" active="assignments" />
       <main className="flex-1 overflow-y-auto p-6">
-        <a
-          href="#"
-          className="flex items-center gap-1 text-sm text-slate-500 mb-4"
+        <Link
+          to="/student/assignments"
+          className="flex items-center gap-1 text-sm text-slate-500 mb-4 w-fit"
         >
           <ChevronLeft size={14} /> Back to Assignments
-        </a>
+        </Link>
+
+        {loading && (
+          <p className="text-sm text-slate-400">Loading assignment…</p>
+        )}
 
         {error && (
           <div className="flex items-center gap-2 text-sm text-rose-600 mb-4">
@@ -212,28 +225,47 @@ const AssignmentDetails: React.FC = () => {
               <h3 className="text-sm font-semibold text-slate-700 mb-2">
                 Your Submission
               </h3>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between mb-3">
                 <span
                   className={`text-sm font-medium ${
-                    assignment.submission?.status === "Submitted"
+                    assignment.submission?.status === "Submitted" ||
+                    assignment.submission?.status === "Graded"
                       ? "text-emerald-600"
                       : "text-rose-500"
                   }`}
                 >
                   {assignment.submission?.status ?? "Not Submitted"}
+                  {assignment.submission?.status === "Graded" &&
+                    assignment.submission?.grade !== undefined &&
+                    ` — ${assignment.submission.grade}/${assignment.max_marks}`}
                 </span>
+              </div>
+
+              <textarea
+                value={work}
+                onChange={(e) => setWork(e.target.value)}
+                placeholder="Type or paste your work here…"
+                disabled={assignment.submission?.status === "Submitted" || assignment.submission?.status === "Graded"}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none h-32 mb-3 disabled:bg-slate-50 disabled:text-slate-500"
+              />
+
+              <div className="flex justify-end">
                 <button
                   onClick={handleSubmit}
                   disabled={
-                    submitting || assignment.submission?.status === "Submitted"
+                    submitting ||
+                    !work.trim() ||
+                    assignment.submission?.status === "Submitted" ||
+                    assignment.submission?.status === "Graded"
                   }
                   className="bg-indigo-600 text-white text-sm font-medium px-4 py-2 rounded-lg disabled:opacity-50"
                 >
                   {submitting
                     ? "Submitting…"
-                    : assignment.submission?.status === "Submitted"
+                    : assignment.submission?.status === "Submitted" ||
+                        assignment.submission?.status === "Graded"
                       ? "Submitted"
-                      : "Start Assignment"}
+                      : "Submit Assignment"}
                 </button>
               </div>
             </div>

@@ -32,6 +32,10 @@ async function apiPost<T>(path: string, body?: unknown): Promise<T> {
   return (await authFetch(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined })).json();
 }
 
+async function apiDelete<T>(path: string): Promise<T> {
+  return (await authFetch(path, { method: 'DELETE' })).json();
+}
+
 // ---------- Auth ----------
 export interface LoginResult {
   access_token: string;
@@ -39,6 +43,20 @@ export interface LoginResult {
   name: string;
   user_id: string;
 }
+
+export interface Profile {
+  id: string;
+  name: string;
+  email: string;
+  role: 'student' | 'teacher' | 'admin';
+  bio: string;
+}
+
+export const getMe = () => apiGet<Profile>('/auth/me');
+export const updateProfile = (name: string, email: string, bio: string) =>
+  apiPost<Profile>('/auth/profile', { name, email, bio });
+export const changePassword = (current_password: string, new_password: string) =>
+  apiPost<{ saved: boolean }>('/auth/change-password', { current_password, new_password });
 
 export async function login(email: string, password: string): Promise<LoginResult> {
   const response = await fetch(`${API_BASE_URL}/auth/login`, {
@@ -53,29 +71,62 @@ export async function login(email: string, password: string): Promise<LoginResul
   return response.json();
 }
 
+// Public self-registration is student-only — the backend rejects any other
+// role (see routers/auth.py). Teacher/admin accounts are created from the
+// admin User Management page instead.
+export async function register(name: string, email: string, password: string): Promise<LoginResult> {
+  const response = await fetch(`${API_BASE_URL}/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, email, password, role: 'student' }),
+  });
+  if (!response.ok) {
+    const errText = await response.text().catch(() => '');
+    throw new Error(errText || 'Registration failed');
+  }
+  return response.json();
+}
+
 // ---------- Courses ----------
 export const getCourses = () => apiGet<any[]>('/courses');
+export const createCourse = (name: string, color = 'bg-indigo-100') => apiPost<any>('/courses', { name, color });
 
 export const getQuizzes = () => apiGet<any[]>('/quizzes');
+export const createQuiz = (course_id: string, title: string, duration_minutes: number, questions: any[]) =>
+  apiPost<any>('/quizzes', { course_id, title, duration_minutes, questions });
 export const getExams = () => apiGet<any[]>('/exams');
+export const createExam = (course_id: string, title: string, instructions: string, duration_minutes = 120) =>
+  apiPost<any>('/exams', { course_id, title, instructions, duration_minutes });
 export const getStudentDashboard = () => apiGet<any>('/dashboard/student');
 export const getTeacherDashboard = () => apiGet<any>('/dashboard/teacher');
+export const getSharedDashboardUpdates = () => apiGet<any>('/dashboard/teacher');
 
 // ---------- Assignments ----------
 export const getAssignments = () => apiGet<any[]>('/assignments');
+export const createAssignment = (course_id: string, title: string, instructions: string, due_date?: string, max_marks = 20) =>
+  apiPost<any>('/assignments', { course_id, title, instructions, due_date, max_marks });
 export const getAssignment = (id: string) => apiGet<any>(`/assignments/${id}`);
 export const submitAssignment = (id: string, content: string) =>
   apiPost<any>(`/assignments/${id}/submit`, { content });
+export const getAssignmentSubmissions = (id: string) => apiGet<any[]>(`/assignments/${id}/submissions`);
+export const markAssignmentSubmission = (assignmentId: string, submissionId: string, score: string, feedback?: string) =>
+  apiPost<any>(`/assignments/${assignmentId}/submissions/${submissionId}/mark`, { score, feedback });
 
 // ---------- Quizzes ----------
 export const getQuiz = (id: string) => apiGet<any>(`/quizzes/${id}`);
 export const submitQuiz = (id: string, answers: Record<string, string>) =>
   apiPost<any>(`/quizzes/${id}/submit`, { answers });
+export const getQuizAttempts = (id: string) => apiGet<any[]>(`/quizzes/${id}/attempts`);
+export const scoreQuizAttempt = (quizId: string, attemptId: string, score: number) =>
+  apiPost<any>(`/quizzes/${quizId}/attempts/${attemptId}/score`, { score });
 
 // ---------- Exams ----------
 export const getExam = (id: string) => apiGet<any>(`/exams/${id}`);
 export const saveExamAnswer = (id: string, answer_text: string) =>
   apiPost<any>(`/exams/${id}/answer`, { answer_text });
+export const getExamAnswers = (id: string) => apiGet<any[]>(`/exams/${id}/answers`);
+export const markExamAnswer = (examId: string, answerId: string, score: string, feedback?: string) =>
+  apiPost<any>(`/exams/${examId}/answers/${answerId}/mark`, { score, feedback });
 
 // ---------- Grades ----------
 export const getGrades = () => apiGet<any>('/grades');
@@ -100,6 +151,11 @@ export const getAnalytics = () => apiGet<any>('/analytics');
 export const getNotes = () => apiGet<any[]>('/notes');
 export const addNote = (course_name: string, content: string) =>
   apiPost<any>('/notes', { course_name, content });
+export const getSharedNotes = () => apiGet<any[]>('/shared-notes');
+export const createSharedNote = (course_name: string, content: string) =>
+  apiPost<any>('/shared-notes', { course_name, content });
+export const generateCourseNotes = (course_name: string, topic = '') =>
+  apiPost<{ content: string }>('/ai/generate-notes', { course_name, topic });
 
 // ---------- Messages ----------
 export const getConversations = () => apiGet<any[]>('/conversations');
@@ -115,6 +171,21 @@ export const markAllNotificationsRead = () => apiPost<any>('/notifications/mark-
 export const getAnnouncements = () => apiGet<any[]>('/announcements');
 export const createAnnouncement = (title: string, body: string, course_name = 'All Courses') =>
   apiPost<any>('/announcements', { title, body, course_name });
+
+// ---------- Admin ----------
+export interface AdminUser {
+  id: string;
+  name: string;
+  email: string;
+  role: 'student' | 'teacher' | 'admin';
+}
+export const adminListUsers = () => apiGet<AdminUser[]>('/admin/users');
+export const adminCreateUser = (name: string, email: string, password: string, role: string) =>
+  apiPost<AdminUser>('/admin/users', { name, email, password, role });
+export const adminResetPassword = (userId: string, new_password: string) =>
+  apiPost<{ saved: boolean }>(`/admin/users/${userId}/reset-password`, { new_password });
+export const adminDeleteUser = (userId: string) =>
+  apiDelete<{ deleted: boolean }>(`/admin/users/${userId}`);
 
 // ---------- AI (tutor / question generator / marking) ----------
 export type ChatRole = 'user' | 'assistant';

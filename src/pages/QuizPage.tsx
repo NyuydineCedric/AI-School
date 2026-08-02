@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
 import Sidebar from "../components/Sidebar";
+import { useParams } from "react-router-dom";
 import { ChevronLeft, ChevronRight, AlertCircle } from "lucide-react";
-import { getQuizzes, getQuiz, submitQuiz } from "../lib/api";
+import { getQuiz, submitQuiz } from "../lib/api";
 
 interface Question {
   id: string;
@@ -17,6 +18,7 @@ interface Quiz {
 }
 
 const QuizPage: React.FC = () => {
+  const { id } = useParams<{ id: string }>();
   const [quiz, setQuiz] = useState<Quiz | null>(null);
   const [current, setCurrent] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -28,16 +30,16 @@ const QuizPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    getQuizzes()
-      .then(async (list) => {
-        if (!list[0]) return setError("No quizzes assigned yet.");
-        const full = await getQuiz(list[0].id);
-        setQuiz(full);
-      })
+    if (!id) {
+      setError("No quiz selected.");
+      return;
+    }
+    getQuiz(id)
+      .then(setQuiz)
       .catch((err) =>
         setError(err instanceof Error ? err.message : "Failed to load quiz."),
       );
-  }, []);
+  }, [id]);
 
   const question = quiz?.questions[current];
 

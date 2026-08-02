@@ -1,6 +1,5 @@
 import React from "react";
-import { Link } from "react-router-dom";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { clearSession } from "../lib/auth";
 import {
   LayoutDashboard,
@@ -24,13 +23,11 @@ import {
   BarChart3,
   Megaphone,
   LogOut,
+  Shield,
 } from "lucide-react";
 import { Role } from "../types";
 
-const ICONS: Record<
-  string,
-  React.ComponentType<{ size?: number; className?: string }>
-> = {
+const ICONS: Record<string, React.ComponentType<any>> = {
   dashboard: LayoutDashboard,
   courses: BookOpen,
   students: Users,
@@ -51,6 +48,7 @@ const ICONS: Record<
   aimarking: CheckSquare,
   analytics: BarChart3,
   announcements: Megaphone,
+  admin: Shield,
 };
 
 interface NavEntry {
@@ -81,6 +79,7 @@ const TEACHER_NAV: NavEntry[] = [
   { key: "students", label: "Students" },
   { key: "assignments", label: "Assignments" },
   { key: "quizzes", label: "Quizzes" },
+  { key: "exams", label: "Exams" },
   { key: "questionbank", label: "Question Bank" },
   { key: "aiassistant", label: "AI Assistant" },
   { key: "aitutor", label: "AI Marking" },
@@ -91,6 +90,13 @@ const TEACHER_NAV: NavEntry[] = [
   { key: "settings", label: "Settings" },
 ];
 
+// Admins get everything a teacher gets, plus a User Management entry up top
+// to create accounts and reset passwords.
+const ADMIN_NAV: NavEntry[] = [
+  { key: "admin", label: "User Management" },
+  ...TEACHER_NAV,
+];
+
 // Only keys with a built page get a real route. Everything else in the nav
 // (Notes, Messages, Attendance, Calendar, Notifications, Profile, Settings,
 // Students, Question Bank, Analytics, Announcements, etc.) is shown for visual
@@ -98,9 +104,9 @@ const TEACHER_NAV: NavEntry[] = [
 const STUDENT_ROUTES: Record<string, string> = {
   dashboard: "/student/dashboard",
   courses: "/student/courses",
-  assignments: "/student/assignments/1",
-  quizzes: "/student/quizzes/1",
-  exams: "/student/exams/1",
+  assignments: "/student/assignments",
+  quizzes: "/student/quizzes",
+  exams: "/student/exams",
   grades: "/student/grades",
   aitutor: "/student/ai-tutor",
   notes: "/student/notes",
@@ -120,6 +126,7 @@ const TEACHER_ROUTES: Record<string, string> = {
   students: "/teacher/students",
   assignments: "/teacher/assignments",
   quizzes: "/teacher/quizzes",
+  exams: "/teacher/exams",
   questionbank: "/teacher/question-bank",
   attendance: "/teacher/attendance",
   analytics: "/teacher/analytics",
@@ -128,14 +135,22 @@ const TEACHER_ROUTES: Record<string, string> = {
   settings: "/teacher/settings",
 };
 
+const ADMIN_ROUTES: Record<string, string> = {
+  ...TEACHER_ROUTES,
+  admin: "/admin/users",
+};
+
 interface SidebarProps {
   role: Role;
   active: string; // matches NavEntry.key
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ role, active }) => {
-  const items = role === "teacher" ? TEACHER_NAV : STUDENT_NAV;
-  const routes = role === "teacher" ? TEACHER_ROUTES : STUDENT_ROUTES;
+  const items =
+    role === "admin" ? ADMIN_NAV : role === "teacher" ? TEACHER_NAV : STUDENT_NAV;
+  const routes =
+    role === "admin" ? ADMIN_ROUTES : role === "teacher" ? TEACHER_ROUTES : STUDENT_ROUTES;
+  const navigate = useNavigate();
 
   return (
     <aside className="w-60 shrink-0 h-full bg-white border-r border-slate-200 flex flex-col">

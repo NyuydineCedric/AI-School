@@ -1,25 +1,27 @@
 import React, { useEffect, useState } from "react";
 import Sidebar from "../components/Sidebar";
+import { useParams } from "react-router-dom";
 import { AlertCircle } from "lucide-react";
-import { getExams, getExam, saveExamAnswer } from "../lib/api";
+import { getExam, saveExamAnswer } from "../lib/api";
 
 const ExamPage: React.FC = () => {
+  const { id } = useParams<{ id: string }>();
   const [exam, setExam] = useState<any>(null);
   const [answer, setAnswer] = useState("");
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    getExams()
-      .then(async (list) => {
-        if (!list[0]) return setError("No exams scheduled yet.");
-        const full = await getExam(list[0].id);
-        setExam(full);
-      })
+    if (!id) {
+      setError("No exam selected.");
+      return;
+    }
+    getExam(id)
+      .then(setExam)
       .catch((err) =>
         setError(err instanceof Error ? err.message : "Failed to load exam."),
       );
-  }, []);
+  }, [id]);
 
   const handleSave = async () => {
     if (!exam) return;

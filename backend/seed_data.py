@@ -12,7 +12,9 @@ def seed_if_empty(db: Session):
                            hashed_password=hash_password("teacher123"), role="teacher")
     student = models.User(name="Cedric Nyuydine", email="cedric@smartschool.ai",
                            hashed_password=hash_password("student123"), role="student")
-    db.add_all([teacher, student])
+    admin = models.User(name="Principal Okafor", email="admin@smartschool.ai",
+                         hashed_password=hash_password("admin123"), role="admin")
+    db.add_all([teacher, student, admin])
     db.commit()
 
     ds = models.Course(name="Data Structures", instructor_id=teacher.id, color="bg-indigo-100")

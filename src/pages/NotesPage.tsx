@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import Sidebar from "../components/Sidebar";
-import { StickyNote, Plus } from "lucide-react";
-import { getNotes, addNote } from "../lib/api";
+import { StickyNote, Plus, BookOpen } from "lucide-react";
+import { getNotes, addNote, getSharedNotes, getCourses } from "../lib/api";
 
 interface Note {
   id: string;
@@ -11,17 +11,28 @@ interface Note {
 
 const NotesPage: React.FC = () => {
   const [notes, setNotes] = useState<Note[]>([]);
+  const [sharedNotes, setSharedNotes] = useState<any[]>([]);
+  const [courses, setCourses] = useState<{ id: string; name: string }[]>([]);
   const [draft, setDraft] = useState("");
-  const [course, setCourse] = useState("Data Structures");
+  const [course, setCourse] = useState("");
 
   useEffect(() => {
     getNotes()
       .then(setNotes)
       .catch(() => setNotes([]));
+    getSharedNotes()
+      .then(setSharedNotes)
+      .catch(() => setSharedNotes([]));
+    getCourses()
+      .then((data) => {
+        setCourses(data);
+        if (data[0]) setCourse(data[0].name);
+      })
+      .catch(() => setCourses([]));
   }, []);
 
   const handleAdd = async () => {
-    if (!draft.trim()) return;
+    if (!draft.trim() || !course) return;
     const note = await addNote(course, draft.trim());
     setNotes((prev) => [note, ...prev]);
     setDraft("");
@@ -39,9 +50,12 @@ const NotesPage: React.FC = () => {
             onChange={(e) => setCourse(e.target.value)}
             className="border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none mb-3"
           >
-            <option>Data Structures</option>
-            <option>Operating Systems</option>
-            <option>Database Systems</option>
+            {courses.length === 0 && <option value="">No courses yet</option>}
+            {courses.map((c) => (
+              <option key={c.id} value={c.name}>
+                {c.name}
+              </option>
+            ))}
           </select>
           <textarea
             value={draft}
@@ -57,21 +71,48 @@ const NotesPage: React.FC = () => {
           </button>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          {notes.map((n) => (
-            <div
-              key={n.id}
-              className="bg-white border border-slate-200 rounded-xl p-4"
-            >
-              <div className="flex items-center gap-2 mb-2">
-                <StickyNote size={14} className="text-indigo-500" />
-                <span className="text-xs font-medium text-indigo-600">
-                  {n.course_name}
-                </span>
+        <div className="mb-6">
+          <h2 className="text-sm font-semibold text-slate-800 mb-3">
+            Shared class notes
+          </h2>
+          <div className="grid grid-cols-2 gap-4">
+            {sharedNotes.map((n) => (
+              <div
+                key={n.id}
+                className="bg-white border border-slate-200 rounded-xl p-4"
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <BookOpen size={14} className="text-emerald-500" />
+                  <span className="text-xs font-medium text-emerald-600">
+                    {n.course_name}
+                  </span>
+                </div>
+                <p className="text-sm text-slate-600">{n.content}</p>
               </div>
-              <p className="text-sm text-slate-600">{n.content}</p>
-            </div>
-          ))}
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <h2 className="text-sm font-semibold text-slate-800 mb-3">
+            My notes
+          </h2>
+          <div className="grid grid-cols-2 gap-4">
+            {notes.map((n) => (
+              <div
+                key={n.id}
+                className="bg-white border border-slate-200 rounded-xl p-4"
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <StickyNote size={14} className="text-indigo-500" />
+                  <span className="text-xs font-medium text-indigo-600">
+                    {n.course_name}
+                  </span>
+                </div>
+                <p className="text-sm text-slate-600">{n.content}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </main>
     </div>

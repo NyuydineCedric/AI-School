@@ -1,7 +1,21 @@
 import React, { useEffect, useState } from "react";
 import Sidebar from "../components/Sidebar";
-import { Search, AlertCircle } from "lucide-react";
-import { getCourses } from "../lib/api";
+import { Link } from "react-router-dom";
+import {
+  Search,
+  AlertCircle,
+  ClipboardList,
+  HelpCircle,
+  FileText,
+  StickyNote,
+} from "lucide-react";
+import {
+  getCourses,
+  getAssignments,
+  getQuizzes,
+  getExams,
+  getSharedNotes,
+} from "../lib/api";
 
 interface Course {
   id: string;
@@ -13,12 +27,30 @@ interface Course {
 
 const CoursesPage: React.FC = () => {
   const [courses, setCourses] = useState<Course[]>([]);
+  const [assignments, setAssignments] = useState<any[]>([]);
+  const [quizzes, setQuizzes] = useState<any[]>([]);
+  const [exams, setExams] = useState<any[]>([]);
+  const [sharedNotes, setSharedNotes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    getCourses()
-      .then(setCourses)
+    Promise.all([
+      getCourses(),
+      getAssignments(),
+      getQuizzes(),
+      getExams(),
+      getSharedNotes(),
+    ])
+      .then(
+        ([coursesData, assignmentsData, quizzesData, examsData, notesData]) => {
+          setCourses(coursesData);
+          setAssignments(assignmentsData);
+          setQuizzes(quizzesData);
+          setExams(examsData);
+          setSharedNotes(notesData);
+        },
+      )
       .catch((err) =>
         setError(
           err instanceof Error ? err.message : "Failed to load courses.",
@@ -56,28 +88,71 @@ const CoursesPage: React.FC = () => {
           {courses.map((c) => (
             <div
               key={c.id}
-              className="bg-white border border-slate-200 rounded-xl overflow-hidden"
+              className="bg-white border border-slate-200 rounded-xl overflow-hidden hover:shadow-md transition-shadow"
             >
-              <div className={`h-20 ${c.color}`} />
+              <Link to={`/student/courses/${c.id}`} className="block">
+                <div className={`h-20 ${c.color}`} />
+                <div className="p-4 pb-0">
+                  <p className="font-semibold text-slate-800 text-sm">{c.name}</p>
+                  {c.instructor && (
+                    <p className="text-xs text-slate-400 mb-3">{c.instructor}</p>
+                  )}
+                  {c.progress !== undefined && (
+                    <>
+                      <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
+                        <span>Progress</span>
+                        <span>{c.progress}%</span>
+                      </div>
+                      <div className="w-full h-1.5 bg-slate-100 rounded-full">
+                        <div
+                          className="h-1.5 bg-indigo-500 rounded-full"
+                          style={{ width: `${c.progress}%` }}
+                        />
+                      </div>
+                    </>
+                  )}
+                </div>
+              </Link>
               <div className="p-4">
-                <p className="font-semibold text-slate-800 text-sm">{c.name}</p>
-                {c.instructor && (
-                  <p className="text-xs text-slate-400 mb-3">{c.instructor}</p>
-                )}
-                {c.progress !== undefined && (
-                  <>
-                    <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
-                      <span>Progress</span>
-                      <span>{c.progress}%</span>
+                <div className="mt-4 space-y-2 text-sm text-slate-600">
+                  {assignments
+                    .filter((item) => item.title)
+                    .slice(0, 2)
+                    .map((item) => (
+                      <Link
+                        key={item.id}
+                        to={`/student/assignments/${item.id}`}
+                        className="flex items-center gap-2 hover:text-indigo-600"
+                      >
+                        <ClipboardList size={14} className="text-indigo-500" />
+                        <span>{item.title}</span>
+                      </Link>
+                    ))}
+                  {quizzes.slice(0, 1).map((item) => (
+                    <div key={item.id} className="flex items-center gap-2">
+                      <HelpCircle size={14} className="text-amber-500" />
+                      <span>{item.title}</span>
                     </div>
-                    <div className="w-full h-1.5 bg-slate-100 rounded-full">
-                      <div
-                        className="h-1.5 bg-indigo-500 rounded-full"
-                        style={{ width: `${c.progress}%` }}
-                      />
+                  ))}
+                  {exams.slice(0, 1).map((item) => (
+                    <div key={item.id} className="flex items-center gap-2">
+                      <FileText size={14} className="text-rose-500" />
+                      <span>{item.title}</span>
                     </div>
-                  </>
-                )}
+                  ))}
+                </div>
+                <Link
+                  to={`/student/courses/${c.id}`}
+                  className="mt-4 flex items-center gap-2 text-sm font-medium text-emerald-600 hover:text-emerald-700"
+                >
+                  <StickyNote size={14} />
+                  Notes
+                  {sharedNotes.filter((n) => n.course_name === c.name).length > 0 && (
+                    <span className="text-xs font-normal text-slate-400">
+                      ({sharedNotes.filter((n) => n.course_name === c.name).length})
+                    </span>
+                  )}
+                </Link>
               </div>
             </div>
           ))}
