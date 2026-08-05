@@ -7,6 +7,19 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // Polyfill for Vite dev client console forwarding flag.
+      // Some dev clients reference __SERVER_FORWARD_CONSOLE__ when forwarding
+      // server logs to the browser. Define it so pages don't throw a ReferenceError.
+      try {
+        if (typeof window !== 'undefined' && typeof __SERVER_FORWARD_CONSOLE__ === 'undefined') {
+          // eslint-disable-next-line no-undef
+          window.__SERVER_FORWARD_CONSOLE__ = false;
+        }
+      } catch (e) {
+        // ignore in constrained environments
+      }
+    </script>
     <script type="module" src="/src/index.tsx"></script>
   </body>
 </html>

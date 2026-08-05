@@ -233,3 +233,77 @@ export async function streamChatMessage(
     if (chunk) onToken(chunk);
   }
 }
+
+// ---------- AI document helpers ----------
+export async function fetchGeneratedDocument(body: {
+  course_name: string;
+  topic?: string;
+  format?: 'pdf' | 'docx';
+  title?: string;
+}): Promise<{ blob: Blob; filename: string }> {
+  const token = getToken();
+  const resp = await fetch(`${API_BASE_URL}/ai/generate-document`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!resp.ok) {
+    const txt = await resp.text().catch(() => '');
+    throw new Error(txt || resp.statusText);
+  }
+
+  const blob = await resp.blob();
+  const disposition = resp.headers.get('Content-Disposition') || '';
+  const match = disposition.match(/filename="(.+)"/);
+  const filename = match ? match[1] : `${body.course_name || 'notes'}.${body.format === 'docx' ? 'docx' : 'pdf'}`;
+  return { blob, filename };
+}
+
+export async function convertUploadToDocxFile(file: File) {
+  const token = getToken();
+  const fd = new FormData();
+  fd.append('file', file);
+
+  const resp = await fetch(`${API_BASE_URL}/ai/convert-to-docx`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    body: fd,
+  });
+
+  if (!resp.ok) {
+    const txt = await resp.text().catch(() => '');
+    throw new Error(txt || resp.statusText);
+  }
+
+  const blob = await resp.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = file.name.replace(/\.[^.]+$/, '') + '.docx';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+export async function extractTextFromDocument(file: File): Promise<string> {
+  const token = getToken();
+  const fd = new FormData();
+  fd.append('file', file);
+
+  const resp = await fetch(`${API_BASE_URL}/ai/extract-text`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    body: fd,
+  });
+
+  if (!resp.ok) {
+    const txt = await resp.text().catch(() => '');
+    throw new Error(txt || resp.statusText);
+  }
+
+  const data = await resp.json();
+  return data.content || '';
+}

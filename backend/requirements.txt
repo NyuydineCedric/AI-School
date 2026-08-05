@@ -11,3 +11,6 @@ python-multipart
 python-dotenv
 langchain-google-genai
 langchain-core
+python-docx
+reportlab
+PyPDF2

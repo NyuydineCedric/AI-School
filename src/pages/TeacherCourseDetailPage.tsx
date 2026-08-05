@@ -1,12 +1,14 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
-import { ChevronLeft, Sparkles, StickyNote, AlertCircle } from "lucide-react";
+import { ChevronLeft, Sparkles, StickyNote, AlertCircle, Download, Plus } from "lucide-react";
 import {
   getCourses,
   getSharedNotes,
   createSharedNote,
   generateCourseNotes,
+  fetchGeneratedDocument,
+  extractTextFromDocument,
 } from "../lib/api";
 
 interface Course {
@@ -33,7 +35,10 @@ const TeacherCourseDetailPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const load = () => {
     setLoading(true);
@@ -86,6 +91,59 @@ const TeacherCourseDetailPage: React.FC = () => {
       setError(err instanceof Error ? err.message : "Failed to publish note.");
     } finally {
       setPublishing(false);
+    }
+  };
+
+  const handleDownloadDocument = async (format: "pdf" | "docx") => {
+    if (!course) return;
+    setDownloading(true);
+    setError(null);
+    try {
+      const { blob, filename } = await fetchGeneratedDocument({
+        course_name: course.name,
+        topic: topic.trim() || course.name,
+        format,
+        title: `${course.name} - Study Notes`,
+      });
+
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : `Failed to download ${format.toUpperCase()}`
+      );
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  const handleUploadDocument = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    setError(null);
+    try {
+      const extractedContent = await extractTextFromDocument(file);
+      setDraft(extractedContent);
+      setTopic(""); // Clear topic since we're using uploaded content
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to upload document"
+      );
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
     }
   };
 
@@ -143,6 +201,22 @@ const TeacherCourseDetailPage: React.FC = () => {
                   <Sparkles size={14} />
                   {generating ? "Generating…" : "Generate with AI"}
                 </button>
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                  className="flex items-center justify-center bg-green-50 text-green-700 text-sm font-medium px-3 py-2 rounded-lg disabled:opacity-50 hover:bg-green-100 transition w-10 h-10"
+                  title="Upload document"
+                >
+                  <Plus size={18} />
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf,.docx,.doc,.txt"
+                  onChange={handleUploadDocument}
+                  disabled={uploading}
+                  className="hidden"
+                />
               </div>
 
               <textarea
@@ -152,11 +226,27 @@ const TeacherCourseDetailPage: React.FC = () => {
                 className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none h-40 mb-3"
               />
 
-              <div className="flex justify-end">
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => handleDownloadDocument("pdf")}
+                  disabled={downloading}
+                  className="flex items-center gap-1.5 bg-red-50 text-red-700 text-sm font-medium px-4 py-2 rounded-lg disabled:opacity-50 hover:bg-red-100 transition"
+                >
+                  <Download size={14} />
+                  {downloading ? "Downloading…" : "Download PDF"}
+                </button>
+                <button
+                  onClick={() => handleDownloadDocument("docx")}
+                  disabled={downloading}
+                  className="flex items-center gap-1.5 bg-blue-50 text-blue-700 text-sm font-medium px-4 py-2 rounded-lg disabled:opacity-50 hover:bg-blue-100 transition"
+                >
+                  <Download size={14} />
+                  {downloading ? "Downloading…" : "Download DOCX"}
+                </button>
                 <button
                   onClick={handlePublish}
                   disabled={publishing || !draft.trim()}
-                  className="bg-indigo-600 text-white text-sm font-medium px-4 py-2 rounded-lg disabled:opacity-50"
+                  className="bg-indigo-600 text-white text-sm font-medium px-4 py-2 rounded-lg disabled:opacity-50 hover:bg-indigo-700 transition"
                 >
                   {publishing ? "Publishing…" : "Publish Note"}
                 </button>

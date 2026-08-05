@@ -7,3 +7,17 @@ dist/
 .DS_Store
 *.db
 *.db-journal
+# Environment variables / secrets
+.env
+.env.local
+.env.*.local
+
+# Virtual environment
+venv/
+.venv/
+env/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
