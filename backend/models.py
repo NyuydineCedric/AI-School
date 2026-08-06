@@ -142,6 +142,16 @@ class SharedNote(Base):
     content = Column(Text)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
+class SharedDocument(Base):
+    __tablename__ = "shared_documents"
+    id = Column(String, primary_key=True, default=gen_id)
+    author_id = Column(String, ForeignKey("users.id"))
+    course_name = Column(String)
+    filename = Column(String)
+    content_type = Column(String)
+    storage_path = Column(String)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
 
 class Conversation(Base):
     __tablename__ = "conversations"
