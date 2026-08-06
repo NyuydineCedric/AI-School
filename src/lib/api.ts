@@ -157,6 +157,46 @@ export const createSharedNote = (course_name: string, content: string) =>
 export const generateCourseNotes = (course_name: string, topic = '') =>
   apiPost<{ content: string }>('/ai/generate-notes', { course_name, topic });
 
+export const getSharedDocuments = () => apiGet<any[]>('/shared-documents');
+
+export async function uploadSharedDocument(course_name: string, file: File) {
+  const token = getToken();
+  const fd = new FormData();
+  fd.append('course_name', course_name);
+  fd.append('file', file);
+  const resp = await fetch(`${API_BASE_URL}/shared-documents`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    body: fd,
+  });
+  if (!resp.ok) {
+    const txt = await resp.text().catch(() => '');
+    throw new Error(txt || resp.statusText);
+  }
+  return resp.json();
+}
+
+export async function downloadSharedDocument(documentId: string): Promise<{ blob: Blob; filename: string }> {
+  const token = getToken();
+  const resp = await fetch(`${API_BASE_URL}/shared-documents/${documentId}/download`, {
+    method: 'GET',
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  });
+
+  if (!resp.ok) {
+    const txt = await resp.text().catch(() => '');
+    throw new Error(txt || resp.statusText);
+  }
+
+  const blob = await resp.blob();
+  const disposition = resp.headers.get('Content-Disposition') || '';
+  const match = disposition.match(/filename="?([^";]+)"?/);
+  const filename = match ? match[1] : `document-${documentId}`;
+  return { blob, filename };
+}
+
+
+
 // ---------- Messages ----------
 export const getConversations = () => apiGet<any[]>('/conversations');
 export const getMessages = (conversationId: string) => apiGet<any[]>(`/conversations/${conversationId}/messages`);
@@ -243,6 +283,34 @@ export async function fetchGeneratedDocument(body: {
 }): Promise<{ blob: Blob; filename: string }> {
   const token = getToken();
   const resp = await fetch(`${API_BASE_URL}/ai/generate-document`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!resp.ok) {
+    const txt = await resp.text().catch(() => '');
+    throw new Error(txt || resp.statusText);
+  }
+
+  const blob = await resp.blob();
+  const disposition = resp.headers.get('Content-Disposition') || '';
+  const match = disposition.match(/filename="(.+)"/);
+  const filename = match ? match[1] : `${body.course_name || 'notes'}.${body.format === 'docx' ? 'docx' : 'pdf'}`;
+  return { blob, filename };
+}
+
+export async function convertTextToDocument(body: {
+  course_name: string;
+  content: string;
+  format: 'pdf' | 'docx';
+  title?: string;
+}): Promise<{ blob: Blob; filename: string }> {
+  const token = getToken();
+  const resp = await fetch(`${API_BASE_URL}/ai/convert-text-document`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
