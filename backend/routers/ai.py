@@ -341,6 +341,110 @@ Write this now:'''
     raise HTTPException(status_code=400, detail="Unsupported format; use 'pdf' or 'docx'")
 
 
+class ConvertTextDocumentRequest(BaseModel):
+    course_name: str
+    content: str
+    format: str = "pdf"
+    title: str | None = None
+
+
+@router.post("/ai/convert-text-document")
+def convert_text_to_document(
+    payload: ConvertTextDocumentRequest,
+    user: models.User = Depends(require_role("teacher")),
+):
+    if not payload.content.strip():
+        raise HTTPException(status_code=400, detail="Content is required")
+
+    title = payload.title or payload.course_name
+    content = payload.content
+
+    if payload.format.lower() == "docx":
+        try:
+            from docx import Document as DocxDocument
+            from docx.shared import Pt, RGBColor
+            from docx.enum.text import WD_ALIGN_PARAGRAPH
+        except Exception:
+            raise HTTPException(status_code=500, detail="python-docx not installed on the server")
+
+        doc = DocxDocument()
+        title_para = doc.add_heading(title, level=1)
+        title_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+        lines = content.split("\n")
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            if (len(line) < 80 and line[0].isupper() and not line.endswith(".") and not any(line.startswith(f"{i}.") for i in range(10))):
+                doc.add_heading(line, level=2)
+            elif line.startswith("•") or line.startswith("-"):
+                doc.add_paragraph(line.lstrip("•- ").strip(), style='List Bullet')
+            else:
+                para = doc.add_paragraph(line)
+                para.paragraph_format.space_after = Pt(6)
+                para.paragraph_format.line_spacing = 1.15
+
+        buffer = BytesIO()
+        doc.save(buffer)
+        buffer.seek(0)
+        filename = f"{title.replace(' ', '_')}.docx"
+        return StreamingResponse(
+            buffer,
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            headers={"Content-Disposition": f"attachment; filename=\"{filename}\""},
+        )
+
+    if payload.format.lower() == "pdf":
+        try:
+            from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY
+            from reportlab.lib.pagesizes import letter
+            from reportlab.lib.styles import ParagraphStyle
+            from reportlab.lib.units import inch
+            from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
+        except Exception:
+            raise HTTPException(status_code=500, detail="reportlab not installed on the server")
+
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(
+            buffer,
+            pagesize=letter,
+            rightMargin=0.75*inch,
+            leftMargin=0.75*inch,
+            topMargin=1*inch,
+            bottomMargin=0.75*inch,
+        )
+
+        title_style = ParagraphStyle('CustomTitle', fontName='Helvetica-Bold', fontSize=24, alignment=TA_CENTER, spaceAfter=12)
+        heading_style = ParagraphStyle('CustomHeading', fontName='Helvetica-Bold', fontSize=13, spaceAfter=6, spaceBefore=12)
+        normal_style = ParagraphStyle('CustomNormal', fontName='Helvetica', fontSize=10.5, alignment=TA_JUSTIFY, spaceAfter=8, leading=14)
+
+        story = [Paragraph(title, title_style), Spacer(1, 0.2*inch)]
+        lines = content.split("\n")
+        for line in lines:
+            line = line.strip()
+            if not line:
+                story.append(Spacer(1, 0.1*inch))
+                continue
+            if (len(line) < 80 and line[0].isupper() and not line.endswith(".") and not any(line.startswith(f"{i}.") for i in range(10))):
+                story.append(Paragraph(line, heading_style))
+            elif line.startswith("•") or line.startswith("-"):
+                story.append(Paragraph(f"• {line.lstrip('•- ').strip()}", ParagraphStyle('BulletStyle', fontName='Helvetica', fontSize=10.5, leftIndent=20, spaceAfter=6, leading=14)))
+            else:
+                story.append(Paragraph(line, normal_style))
+
+        doc.build(story)
+        buffer.seek(0)
+        filename = f"{title.replace(' ', '_')}.pdf"
+        return StreamingResponse(
+            buffer,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"attachment; filename=\"{filename}\""},
+        )
+
+    raise HTTPException(status_code=400, detail="Unsupported format; use 'pdf' or 'docx'")
+
+
 @router.post("/ai/convert-to-docx")
 async def convert_to_docx(file: UploadFile = File(...), user: models.User = Depends(require_role("teacher"))):
     filename = file.filename or "uploaded"

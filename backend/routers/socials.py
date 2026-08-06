@@ -1,10 +1,17 @@
-from fastapi import APIRouter, Depends, HTTPException
+from pathlib import Path
+import uuid
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
 from database import get_db
 import models
 from auth import get_current_user, require_role
+
+UPLOADS_DIR = Path(__file__).resolve().parent.parent / "uploads" / "shared_documents"
+UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
 router = APIRouter(tags=["social"])
 
@@ -43,6 +50,68 @@ def create_shared_note(payload: NoteCreate, db: Session = Depends(get_db), user:
     db.commit()
     db.refresh(note)
     return {"id": note.id, "course_name": note.course_name, "content": note.content, "created_at": note.created_at}
+
+@router.get("/shared-documents")
+def list_shared_documents(db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
+    items = db.query(models.SharedDocument).order_by(models.SharedDocument.created_at.desc()).all()
+    return [
+        {
+            "id": item.id,
+            "course_name": item.course_name,
+            "filename": item.filename,
+            "content_type": item.content_type,
+            "created_at": item.created_at,
+        }
+        for item in items
+    ]
+
+@router.post("/shared-documents")
+async def create_shared_document(
+    course_name: str = Form(...),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_role("teacher")),
+):
+    filename = Path(file.filename or "document").name
+    stored_filename = f"{uuid.uuid4().hex}_{filename}"
+    file_path = UPLOADS_DIR / stored_filename
+
+    contents = await file.read()
+    file_path.write_bytes(contents)
+
+    document = models.SharedDocument(
+        author_id=user.id,
+        course_name=course_name,
+        filename=filename,
+        content_type=file.content_type or "application/octet-stream",
+        storage_path=str(file_path),
+    )
+    db.add(document)
+    db.commit()
+    db.refresh(document)
+
+    return {
+        "id": document.id,
+        "course_name": document.course_name,
+        "filename": document.filename,
+        "content_type": document.content_type,
+        "created_at": document.created_at,
+    }
+
+@router.get("/shared-documents/{document_id}/download")
+def download_shared_document(
+    document_id: str,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
+):
+    document = db.query(models.SharedDocument).filter(models.SharedDocument.id == document_id).first()
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+    return FileResponse(
+        path=document.storage_path,
+        filename=document.filename,
+        media_type=document.content_type,
+    )
 
 
 # ---------- Conversations / Messages ----------
