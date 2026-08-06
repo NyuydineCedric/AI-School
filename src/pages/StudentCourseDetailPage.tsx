@@ -9,7 +9,9 @@ import {
   FileText,
   AlertCircle,
 } from "lucide-react";
-import { getCourses, getAssignments, getQuizzes, getExams, getSharedNotes } from "../lib/api";
+import { getCourses, getAssignments, getQuizzes, getExams, getSharedNotes, getSharedDocuments } from "../lib/api";
+
+const API_BASE_URL = import.meta.env.VITE_API_URL ?? "";
 
 interface Course {
   id: string;
@@ -23,6 +25,7 @@ const StudentCourseDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const [course, setCourse] = useState<Course | null>(null);
   const [notes, setNotes] = useState<any[]>([]);
+  const [documents, setDocuments] = useState<any[]>([]);
   const [assignments, setAssignments] = useState<any[]>([]);
   const [quizzes, setQuizzes] = useState<any[]>([]);
   const [exams, setExams] = useState<any[]>([]);
@@ -38,8 +41,9 @@ const StudentCourseDetailPage: React.FC = () => {
       getQuizzes(),
       getExams(),
       getSharedNotes(),
+      getSharedDocuments(),
     ])
-      .then(([courses, allAssignments, allQuizzes, allExams, allNotes]) => {
+      .then(([courses, allAssignments, allQuizzes, allExams, allNotes, allDocuments]) => {
         const found = courses.find((c: Course) => c.id === id) ?? null;
         setCourse(found);
         setAssignments(
@@ -49,6 +53,9 @@ const StudentCourseDetailPage: React.FC = () => {
         setExams(allExams.filter((e: any) => e.course === found?.name));
         setNotes(
           allNotes.filter((n: any) => n.course_name === found?.name),
+        );
+        setDocuments(
+          allDocuments.filter((d: any) => d.course_name === found?.name),
         );
       })
       .catch((err) =>
@@ -108,6 +115,42 @@ const StudentCourseDetailPage: React.FC = () => {
                       </div>
                       <p className="text-sm text-slate-600 whitespace-pre-wrap">
                         {n.content}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="col-span-2 bg-white border border-slate-200 rounded-xl p-5">
+                <h3 className="text-sm font-semibold text-slate-800 mb-4">
+                  Course Documents
+                </h3>
+                {documents.length === 0 && (
+                  <p className="text-sm text-slate-400">
+                    No documents have been published for this course yet.
+                  </p>
+                )}
+                <div className="space-y-3">
+                  {documents.map((doc) => (
+                    <div
+                      key={doc.id}
+                      className="border border-slate-100 rounded-lg p-3"
+                    >
+                      <div className="flex items-center justify-between gap-2 mb-1.5">
+                        <div className="flex items-center gap-2">
+                          <FileText size={14} className="text-rose-500" />
+                          <span className="text-xs font-medium text-rose-600">
+                            Document
+                          </span>
+                        </div>
+                        <a
+                          href={`${API_BASE_URL}/shared-documents/${doc.id}/download`}
+                          className="text-xs text-blue-600 hover:text-blue-800"
+                        >
+                          Download
+                        </a>
+                      </div>
+                      <p className="text-sm text-slate-600 break-words">
+                        {doc.filename}
                       </p>
                     </div>
                   ))}
