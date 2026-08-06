@@ -192,6 +192,7 @@ export type ChatRole = 'user' | 'assistant';
 export interface ChatMessage {
   role: ChatRole;
   content: string;
+  timestamp: string;
 }
 
 export async function streamChatMessage(

@@ -14,6 +14,45 @@ interface Msg {
   id: string;
   sender_id: string;
   text: string;
+  created_at: string;
+}
+
+function formatTime(isoString?: string): string {
+  if (!isoString) return "";
+  const date = new Date(isoString);
+  if (isNaN(date.getTime())) return "";
+  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+// Returns a stable key for grouping by calendar day, e.g. "2026-08-06".
+// Using this (rather than the raw timestamp) is what lets us detect
+// "different day" without worrying about hours/minutes/seconds.
+function dayKey(isoString?: string): string {
+  if (!isoString) return "";
+  const d = new Date(isoString);
+  if (isNaN(d.getTime())) return "";
+  return d.toDateString();
+}
+
+// WhatsApp-style label: "Today", "Yesterday", or a full date.
+function formatDateLabel(isoString?: string): string {
+  if (!isoString) return "";
+  const date = new Date(isoString);
+  if (isNaN(date.getTime())) return "";
+
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+
+  if (date.toDateString() === today.toDateString()) return "Today";
+  if (date.toDateString() === yesterday.toDateString()) return "Yesterday";
+
+  return date.toLocaleDateString([], {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: date.getFullYear() !== today.getFullYear() ? "numeric" : undefined,
+  });
 }
 
 const MessagesPage: React.FC<{ role: Role }> = ({ role }) => {
@@ -66,19 +105,40 @@ const MessagesPage: React.FC<{ role: Role }> = ({ role }) => {
           <div className="px-5 py-3 border-b border-slate-100 font-semibold text-sm text-slate-800">
             {active?.name ?? "Select a conversation"}
           </div>
-          <div className="flex-1 overflow-y-auto p-5 space-y-3">
-            {messages.map((m) => (
-              <div
-                key={m.id}
-                className={`flex ${m.sender_id === myId ? "justify-end" : "justify-start"}`}
-              >
-                <div
-                  className={`max-w-xs px-4 py-2 rounded-xl text-sm ${m.sender_id === myId ? "bg-indigo-600 text-white rounded-tr-none" : "bg-slate-50 text-slate-700 rounded-tl-none"}`}
-                >
-                  {m.text}
-                </div>
-              </div>
-            ))}
+          <div className="flex-1 overflow-y-auto p-5 space-y-3 no-scrollbar">
+            {messages.map((m, i) => {
+              const prev = messages[i - 1];
+              const showDateSeparator =
+                dayKey(m.created_at) !== dayKey(prev?.created_at);
+
+              return (
+                <React.Fragment key={m.id}>
+                  {showDateSeparator && (
+                    <div className="flex justify-center my-2">
+                      <span className="text-[11px] font-medium text-slate-500 bg-slate-100 px-3 py-1 rounded-full">
+                        {formatDateLabel(m.created_at)}
+                      </span>
+                    </div>
+                  )}
+                  <div
+                    className={`flex flex-col ${m.sender_id === myId ? "items-end" : "items-start"}`}
+                  >
+                    <div
+                      className={`max-w-xs px-4 py-2 rounded-xl text-sm ${
+                        m.sender_id === myId
+                          ? "bg-indigo-600 text-white rounded-tr-none"
+                          : "bg-slate-50 text-slate-700 rounded-tl-none"
+                      }`}
+                    >
+                      {m.text}
+                    </div>
+                    <span className="text-[10px] text-slate-400 mt-1 px-1">
+                      {formatTime(m.created_at)}
+                    </span>
+                  </div>
+                </React.Fragment>
+              );
+            })}
           </div>
           <div className="p-4 border-t border-slate-100 flex gap-2">
             <input
