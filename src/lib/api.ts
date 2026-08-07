@@ -195,6 +195,9 @@ export async function downloadSharedDocument(documentId: string): Promise<{ blob
   return { blob, filename };
 }
 
+export const deleteSharedDocument = (documentId: string) =>
+  apiDelete<{ deleted: boolean }>(`/shared-documents/${documentId}`);
+
 
 
 // ---------- Messages ----------

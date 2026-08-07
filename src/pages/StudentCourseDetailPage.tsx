@@ -9,9 +9,7 @@ import {
   FileText,
   AlertCircle,
 } from "lucide-react";
-import { getCourses, getAssignments, getQuizzes, getExams, getSharedNotes, getSharedDocuments } from "../lib/api";
-
-const API_BASE_URL = import.meta.env.VITE_API_URL ?? "";
+import { getCourses, getAssignments, getQuizzes, getExams, getSharedNotes, getSharedDocuments, downloadSharedDocument } from "../lib/api";
 
 interface Course {
   id: string;
@@ -31,6 +29,22 @@ const StudentCourseDetailPage: React.FC = () => {
   const [exams, setExams] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const handleDownloadDocument = async (documentId: string, filename: string) => {
+    try {
+      const { blob, filename: downloadedFilename } = await downloadSharedDocument(documentId);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = downloadedFilename || filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to download document.");
+    }
+  };
 
   useEffect(() => {
     setLoading(true);
@@ -142,12 +156,13 @@ const StudentCourseDetailPage: React.FC = () => {
                             Document
                           </span>
                         </div>
-                        <a
-                          href={`${API_BASE_URL}/shared-documents/${doc.id}/download`}
+                        <button
+                          type="button"
+                          onClick={() => handleDownloadDocument(doc.id, doc.filename)}
                           className="text-xs text-blue-600 hover:text-blue-800"
                         >
                           Download
-                        </a>
+                        </button>
                       </div>
                       <p className="text-sm text-slate-600 break-words">
                         {doc.filename}

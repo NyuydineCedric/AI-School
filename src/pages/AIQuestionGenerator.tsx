@@ -14,10 +14,13 @@ import {
 import {
   streamChatMessage,
   addQuestionBankItem,
-  fetchGeneratedDocument,
+  convertTextToDocument,
   convertUploadToDocxFile,
+  getSharedDocuments,
+  uploadSharedDocument,
+  downloadSharedDocument,
+  deleteSharedDocument,
 } from "../lib/api";
-import html2canvas from "html2canvas";
 
 const Field: React.FC<{ label: string; children: React.ReactNode }> = ({
   label,
@@ -52,6 +55,14 @@ type GeneratedDoc = {
   url: string;
 };
 
+type SharedDocumentItem = {
+  id: string;
+  course_name: string;
+  filename: string;
+  content_type: string;
+  created_at?: string;
+};
+
 const generateId = () =>
   typeof crypto !== "undefined" && "randomUUID" in crypto
     ? crypto.randomUUID()
@@ -72,12 +83,13 @@ const AIQuestionGenerator: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [added, setAdded] = useState(false);
-  const [screenshotUrl, setScreenshotUrl] = useState<string | null>(null);
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [selectedAttachmentId, setSelectedAttachmentId] = useState<string | null>(null);
   const [generatedDocs, setGeneratedDocs] = useState<GeneratedDoc[]>([]);
   const [activeDoc, setActiveDoc] = useState<string | null>(null);
+  const [sentDocs, setSentDocs] = useState<SharedDocumentItem[]>([]);
+  const [sending, setSending] = useState(false);
   const [converting, setConverting] = useState(false);
   const [downloadLoading, setDownloadLoading] = useState(false);
 
@@ -103,10 +115,31 @@ const AIQuestionGenerator: React.FC = () => {
     return () => window.removeEventListener("mousedown", handleOutsideClick);
   }, [showAttachmentMenu]);
 
+  useEffect(() => {
+    if (!course) return;
+    let cancelled = false;
+
+    getSharedDocuments()
+      .then((allDocs) => {
+        if (!cancelled) {
+          setSentDocs(allDocs.filter((item) => item.course_name === course));
+        }
+      })
+      .catch(() => {
+        /* ignoring load failures for sent documents */
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [course]);
+
   const handlePaste = async (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    const items = Array.from(event.clipboardData.items);
+    let foundImage = false;
+    const items = Array.from(event.clipboardData.items || []);
+
     for (const item of items) {
-      if (item.type.startsWith("image/")) {
+      if (item.kind === "file" && item.type.startsWith("image/")) {
         const file = item.getAsFile();
         if (!file) continue;
         const url = URL.createObjectURL(file);
@@ -120,7 +153,32 @@ const AIQuestionGenerator: React.FC = () => {
         };
         setAttachments((prev) => [attachment, ...prev]);
         setSelectedAttachmentId(attachment.id);
+        foundImage = true;
       }
+    }
+
+    if (!foundImage) {
+      const files = Array.from(event.clipboardData.files || []);
+      for (const file of files) {
+        if (file.type.startsWith("image/")) {
+          const url = URL.createObjectURL(file);
+          const attachment: Attachment = {
+            id: generateId(),
+            type: "clipboard",
+            name: file.name || `clipboard-${Date.now()}.png`,
+            url,
+            mime: file.type,
+            file,
+          };
+          setAttachments((prev) => [attachment, ...prev]);
+          setSelectedAttachmentId(attachment.id);
+          foundImage = true;
+        }
+      }
+    }
+
+    if (foundImage) {
+      event.preventDefault();
     }
   };
 
@@ -176,6 +234,13 @@ const AIQuestionGenerator: React.FC = () => {
       promptParts.push(`Additional instruction: ${messageInput.trim()}`);
     }
 
+    if (attachments.length > 0) {
+      const attachmentNames = attachments.map((attachment) => attachment.name).join(", ");
+      promptParts.push(
+        `Attached files: ${attachmentNames}. Explain how these materials relate to the question generation.`
+      );
+    }
+
     const prompt = promptParts.join(" ");
 
     try {
@@ -186,6 +251,48 @@ const AIQuestionGenerator: React.FC = () => {
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to generate questions.",
+      );
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const handleChatSend = async () => {
+    const promptParts: string[] = [];
+
+    if (messageInput.trim()) {
+      promptParts.push(messageInput.trim());
+    }
+
+    if (attachments.length > 0) {
+      const attachmentNames = attachments.map((attachment) => attachment.name).join(", ");
+      promptParts.push(
+        `Attached files: ${attachmentNames}. Include the content of these attachments when answering.`
+      );
+    }
+
+    if (promptParts.length === 0) {
+      const docId = activeDoc || generatedDocs[0]?.id;
+      if (docId) {
+        await handleSendDocument(docId);
+      }
+      return;
+    }
+
+    setGenerating(true);
+    setError(null);
+    setPreview("");
+
+    const prompt = promptParts.join(" ");
+
+    try {
+      await streamChatMessage([{ role: "user", content: prompt }], (chunk) => {
+        setPreview((prev) => prev + chunk);
+      });
+      setMessageInput("");
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to get AI response.",
       );
     } finally {
       setGenerating(false);
@@ -209,51 +316,15 @@ const AIQuestionGenerator: React.FC = () => {
     }
   };
 
-  const handleScreenshot = async () => {
-    if (!containerRef.current) return;
-    setError(null);
-    setDownloadLoading(true);
-    try {
-      const canvas = await html2canvas(containerRef.current);
-      const blob = await new Promise<Blob | null>((resolve) =>
-        canvas.toBlob(resolve, "image/png"),
-      );
-      if (!blob) throw new Error("Screenshot capture failed.");
-      const url = URL.createObjectURL(blob);
-      const attachment: Attachment = {
-        id: generateId(),
-        type: "image",
-        name: `screenshot-${Date.now()}.png`,
-        url,
-        mime: "image/png",
-        file: undefined,
-      };
-      setAttachments((prev) => [attachment, ...prev]);
-      setSelectedAttachmentId(attachment.id);
-      setScreenshotUrl(url);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to take screenshot.");
-    } finally {
-      setDownloadLoading(false);
-    }
-  };
-
-  const handleDownloadScreenshot = () => {
-    if (!screenshotUrl) return;
-    const a = document.createElement("a");
-    a.href = screenshotUrl;
-    a.download = `ai-screenshot-${Date.now()}.png`;
-    a.click();
-  };
 
   const handleGenerateDocument = async (format: "pdf" | "docx") => {
     if (!preview.trim()) return;
     setDownloadLoading(true);
     setError(null);
     try {
-      const { blob, filename } = await fetchGeneratedDocument({
+      const { blob, filename } = await convertTextToDocument({
         course_name: course,
-        topic,
+        content: preview,
         format,
         title: `${course}${topic ? " - " + topic : ""}`,
       });
@@ -274,6 +345,72 @@ const AIQuestionGenerator: React.FC = () => {
     a.href = doc.url;
     a.download = doc.filename;
     a.click();
+  };
+
+  const handleSendDocument = async (docId: string) => {
+    const doc = generatedDocs.find((item) => item.id === docId);
+    if (!doc) {
+      setError("Select a generated document before sending it.");
+      return;
+    }
+
+    setSending(true);
+    setError(null);
+    try {
+      const resp = await fetch(doc.url);
+      const blob = await resp.blob();
+      const file = new File([blob], doc.filename, {
+        type:
+          doc.format === "pdf"
+            ? "application/pdf"
+            : "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      });
+      const created = await uploadSharedDocument(course, file);
+      setSentDocs((prev) => [created, ...prev]);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to send document to students."
+      );
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleDownloadSentDocument = async (documentId: string) => {
+    setDownloadLoading(true);
+    setError(null);
+    try {
+      const { blob, filename } = await downloadSharedDocument(documentId);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to download document.");
+    } finally {
+      setDownloadLoading(false);
+    }
+  };
+
+  const handleDeleteSentDocument = async (documentId: string) => {
+    setSending(true);
+    setError(null);
+    try {
+      await deleteSharedDocument(documentId);
+      setSentDocs((prev) => prev.filter((doc) => doc.id !== documentId));
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to delete document."
+      );
+    } finally {
+      setSending(false);
+    }
   };
 
   const handleConvertToDocx = async () => {
@@ -437,6 +574,33 @@ const AIQuestionGenerator: React.FC = () => {
             </div>
 
             <div className="flex-1 min-h-[260px] overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 whitespace-pre-wrap">
+              {attachments.length > 0 ? (
+                <div className="mb-4 rounded-2xl border border-dashed border-slate-300 bg-white p-3">
+                  <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Pasted attachment
+                  </div>
+                  <div className="flex flex-wrap gap-3">
+                    {attachments.map((attachment) => (
+                      <div
+                        key={attachment.id}
+                        className="relative max-w-[120px] rounded-2xl border border-slate-200 bg-slate-100 p-2"
+                      >
+                        {attachment.type === "image" || attachment.type === "clipboard" ? (
+                          <img
+                            src={attachment.url}
+                            alt={attachment.name}
+                            className="h-24 w-full rounded-xl object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-24 items-center justify-center rounded-xl bg-slate-100 text-xs text-slate-500">
+                            {attachment.name}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
               {preview ? preview : (
                 <span className="text-slate-400">
                   {generating
@@ -458,8 +622,39 @@ const AIQuestionGenerator: React.FC = () => {
                 >
                   <Plus size={16} /> Attach
                 </button>
-                <span className="text-xs text-slate-500">Paste an image into the chat box or attach a file.</span>
+                <span className="text-xs text-slate-500">Paste an image into the chat box with Ctrl+V or attach a file.</span>
               </div>
+              {attachments.length > 0 ? (
+                <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Attached to next send
+                  </div>
+                  <div className="flex flex-wrap gap-3">
+                    {attachments.map((attachment) => (
+                      <div key={attachment.id} className="group relative w-24 rounded-2xl border border-slate-200 bg-white p-2">
+                        {(attachment.type === "image" || attachment.type === "clipboard") ? (
+                          <img
+                            src={attachment.url}
+                            alt={attachment.name}
+                            className="h-16 w-16 rounded-xl object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-16 items-center justify-center rounded-xl bg-slate-100 text-[10px] text-slate-500">
+                            {attachment.name}
+                          </div>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => removeAttachment(attachment.id)}
+                          className="absolute right-1 top-1 rounded-full bg-white p-1 text-slate-500 hover:bg-slate-100"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
               <textarea
                 ref={chatInputRef}
                 value={messageInput}
@@ -486,19 +681,14 @@ const AIQuestionGenerator: React.FC = () => {
                   >
                     Generate Word
                   </button>
-                  <button
-                    type="button"
-                    onClick={handleScreenshot}
-                    disabled={!preview || generating || downloadLoading}
-                    className="inline-flex items-center justify-center gap-2 rounded-full bg-slate-800 px-4 py-2 text-sm font-medium text-white hover:bg-slate-900 disabled:opacity-50"
-                  >
-                    Take Screenshot
-                  </button>
                 </div>
                 <button
                   type="button"
-                  onClick={handleGenerate}
-                  disabled={generating || !messageInput.trim()}
+                  onClick={handleChatSend}
+                  disabled={
+                    generating ||
+                    (!messageInput.trim() && attachments.length === 0 && generatedDocs.length === 0)
+                  }
                   className="inline-flex items-center justify-center gap-2 rounded-full bg-violet-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50"
                 >
                   Send
@@ -632,7 +822,7 @@ const AIQuestionGenerator: React.FC = () => {
                 <div>
                   <h4 className="text-sm font-semibold text-slate-800">Generated Documents</h4>
                   <p className="text-xs text-slate-500">
-                    Click a generated file to show its download button.
+                    Click a generated file to show its download and publish actions.
                   </p>
                 </div>
                 <span className="text-xs text-slate-500">{generatedDocs.length} files</span>
@@ -664,7 +854,7 @@ const AIQuestionGenerator: React.FC = () => {
                         <Download size={16} className="text-slate-400" />
                       </button>
                       {activeDoc === doc.id ? (
-                        <div className="mt-3 flex items-center gap-2">
+                        <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center">
                           <button
                             type="button"
                             onClick={() => handleDownloadGeneratedDoc(doc)}
@@ -672,7 +862,15 @@ const AIQuestionGenerator: React.FC = () => {
                           >
                             Download
                           </button>
-                          <span className="text-xs text-slate-500">The file is ready to download.</span>
+                          <button
+                            type="button"
+                            onClick={() => handleSendDocument(doc.id)}
+                            disabled={sending}
+                            className="inline-flex items-center gap-2 rounded-full bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+                          >
+                            {sending ? "Sending…" : "Send to Students"}
+                          </button>
+                          <span className="text-xs text-slate-500">The file is ready to download or publish.</span>
                         </div>
                       ) : null}
                     </div>
@@ -693,6 +891,53 @@ const AIQuestionGenerator: React.FC = () => {
             event.target.value = "";
           }}
         />
+
+        <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-4">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h4 className="text-sm font-semibold text-slate-800">Sent Documents</h4>
+              <p className="text-xs text-slate-500">
+                These documents are published for students and remain available after refresh.
+              </p>
+            </div>
+            <span className="text-xs text-slate-500">{sentDocs.length} files</span>
+          </div>
+          {sentDocs.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-slate-200 p-6 text-sm text-slate-500 text-center">
+              No documents have been sent to students yet.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {sentDocs.map((doc) => (
+                <div key={doc.id} className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-medium text-slate-800">{doc.filename}</div>
+                      <div className="text-xs text-slate-500">{new Date(doc.created_at || "").toLocaleString()}</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleDownloadSentDocument(doc.id)}
+                        className="inline-flex items-center gap-2 rounded-full bg-indigo-600 px-3 py-2 text-xs font-medium text-white hover:bg-indigo-700"
+                      >
+                        Download
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteSentDocument(doc.id)}
+                        disabled={sending}
+                        className="inline-flex items-center gap-2 rounded-full bg-rose-600 px-3 py-2 text-xs font-medium text-white hover:bg-rose-700 disabled:opacity-50"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </main>
     </div>
   );
