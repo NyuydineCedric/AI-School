@@ -210,6 +210,9 @@ export const sendMessage = (conversationId: string, text: string) =>
 export const getNotifications = () => apiGet<any[]>('/notifications');
 export const markAllNotificationsRead = () => apiPost<any>('/notifications/mark-all-read');
 
+export const markNotificationRead = (notificationId: string) =>
+  apiPost<{ read: boolean }>(`/notifications/${notificationId}/read`);
+
 // ---------- Announcements ----------
 export const getAnnouncements = () => apiGet<any[]>('/announcements');
 export const createAnnouncement = (title: string, body: string, course_name = 'All Courses') =>

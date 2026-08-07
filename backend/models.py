@@ -165,13 +165,16 @@ class ConversationParticipant(Base):
     conversation_id = Column(String, ForeignKey("conversations.id"))
     user_id = Column(String, ForeignKey("users.id"))
 
-
 class Message(Base):
     __tablename__ = "messages"
+
     id = Column(String, primary_key=True, default=gen_id)
     conversation_id = Column(String, ForeignKey("conversations.id"))
     sender_id = Column(String, ForeignKey("users.id"))
     text = Column(Text)
+
+    read = Column(Boolean, default=False)
+
     created_at = Column(DateTime, default=datetime.utcnow)
 
 

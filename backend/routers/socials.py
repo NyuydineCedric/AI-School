@@ -237,9 +237,61 @@ def list_announcements(db: Session = Depends(get_db)):
 
 
 @router.post("/announcements")
-def create_announcement(payload: AnnouncementCreate, db: Session = Depends(get_db), user: models.User = Depends(require_role("teacher"))):
-    ann = models.Announcement(author_id=user.id, **payload.dict())
+def create_announcement(
+    payload: AnnouncementCreate,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_role("teacher")),
+):
+    # Create the announcement
+    ann = models.Announcement(
+        author_id=user.id,
+        **payload.dict()
+    )
     db.add(ann)
     db.commit()
     db.refresh(ann)
-    return {"id": ann.id, "title": ann.title, "body": ann.body, "course_name": ann.course_name, "created_at": ann.created_at}
+
+    # Create a notification for every student
+    students = (
+        db.query(models.User)
+        .filter(models.User.role == "student")
+        .all()
+    )
+
+    for student in students:
+        notification = models.Notification(
+            user_id=student.id,
+            text=f"New announcement: {ann.title} ({ann.course_name})\n\n{ann.body}",
+            read=False,
+        )
+        db.add(notification)
+
+    db.commit()
+
+    return {
+        "id": ann.id,
+        "title": ann.title,
+        "body": ann.body,
+        "course_name": ann.course_name,
+        "created_at": ann.created_at,
+    }
+@router.post("/notifications/{notification_id}/read")
+def mark_notification_read(
+    notification_id: str,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
+):
+    notification = (
+        db.query(models.Notification)
+        .filter(
+            models.Notification.id == notification_id,
+            models.Notification.user_id == user.id,
+        )
+        .first()
+    )
+    if not notification:
+        raise HTTPException(status_code=404, detail="Notification not found")
+
+    notification.read = True
+    db.commit()
+    return {"read": True}

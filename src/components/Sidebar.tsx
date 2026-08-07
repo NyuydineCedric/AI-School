@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { clearSession } from "../lib/auth";
+import { getNotifications } from "../lib/api";
 import {
   LayoutDashboard,
   BookOpen,
@@ -146,6 +147,25 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ role, active }) => {
+    // Stores how many notifications are still unread
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  // Load notifications when the Sidebar first appears
+  useEffect(() => {
+    // Only students currently have a Notifications page
+    if (role !== "student") return;
+
+    getNotifications()
+  .then((list: { id: string; text: string; read: boolean; created_at: string }[]) => {
+    // Count only the unread notifications
+    const count = list.filter((n) => !n.read).length;
+    setUnreadCount(count);
+  })
+      .catch(() => {
+        // If the request fails, just show 0
+        setUnreadCount(0);
+      });
+  }, [role]);
   const items =
     role === "admin" ? ADMIN_NAV : role === "teacher" ? TEACHER_NAV : STUDENT_NAV;
   const routes =
@@ -177,14 +197,21 @@ const Sidebar: React.FC<SidebarProps> = ({ role, active }) => {
               : "text-slate-500 hover:bg-slate-50 hover:text-slate-700"
           }`;
           const content = (
-            <>
-              <Icon
-                size={17}
-                className={isActive ? "text-indigo-600" : "text-slate-400"}
-              />
-              {item.label}
-            </>
-          );
+  <>
+    <Icon
+      size={17}
+      className={isActive ? "text-indigo-600" : "text-slate-400"}
+    />
+    <span className="flex-1">{item.label}</span>
+
+    {/* Show the number badge only for Notifications and only when there are unread ones */}
+    {item.key === "notifications" && unreadCount > 0 && (
+      <span className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-indigo-600 text-white text-[11px] font-semibold">
+        {unreadCount}
+      </span>
+    )}
+  </>
+);
 
           // Pages that exist get real client-side navigation.
           if (path) {

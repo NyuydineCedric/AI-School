@@ -9,6 +9,7 @@ interface Conversation {
   id: string;
   name: string;
   last_message: string;
+  unread_count: number;
 }
 interface Msg {
   id: string;
@@ -58,6 +59,11 @@ const MessagesPage: React.FC<{ role: Role }> = ({ role }) => {
               <p className="text-xs text-slate-400 truncate mt-0.5">
                 {c.last_message}
               </p>
+              {c.unread_count > 0 && (
+  <span className="inline-flex items-center rounded-full bg-red-600 text-white text-xs px-2 py-0.5 mt-1">
+    {c.unread_count} unread message{c.unread_count > 1 ? "s" : ""}
+  </span>
+)}
             </button>
           ))}
         </div>

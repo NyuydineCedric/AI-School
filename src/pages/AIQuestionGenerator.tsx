@@ -20,6 +20,7 @@ import {
   uploadSharedDocument,
   downloadSharedDocument,
   deleteSharedDocument,
+  extractTextFromDocument,
 } from "../lib/api";
 
 const Field: React.FC<{ label: string; children: React.ReactNode }> = ({
@@ -218,10 +219,11 @@ const AIQuestionGenerator: React.FC = () => {
   };
 
   const handleGenerate = async () => {
-    setGenerating(true);
-    setError(null);
-    setPreview("");
+  setGenerating(true);
+  setError(null);
+  setPreview("");
 
+  try {
     const promptParts = [
       `Generate ${numQuestions} ${questionType} questions for the course "${course}" on the topic "${topic}".`,
       `Difficulty: ${difficulty}. Bloom's Taxonomy level: ${taxonomy}.`,
@@ -234,70 +236,84 @@ const AIQuestionGenerator: React.FC = () => {
       promptParts.push(`Additional instruction: ${messageInput.trim()}`);
     }
 
-    if (attachments.length > 0) {
-      const attachmentNames = attachments.map((attachment) => attachment.name).join(", ");
-      promptParts.push(
-        `Attached files: ${attachmentNames}. Explain how these materials relate to the question generation.`
-      );
+    // Inject real content from attachments
+    for (const att of attachments) {
+      if (!att.file) continue;
+
+      if (att.type === "document") {
+        const text = await extractTextFromDocument(att.file);
+        promptParts.push(
+          `\n\n--- Content of document "${att.name}" ---\n${text}\n--- End of document ---`
+        );
+      } else if (att.type === "image" || att.type === "clipboard") {
+        promptParts.push(
+          `\n[User attached an image named "${att.name}"]`
+        );
+      }
     }
 
-    const prompt = promptParts.join(" ");
+    const prompt = promptParts.join("\n");
 
-    try {
-      await streamChatMessage([{ role: "user", content: prompt }], (chunk) => {
-        setPreview((prev) => prev + chunk);
-      });
-      setMessageInput("");
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to generate questions.",
-      );
-    } finally {
-      setGenerating(false);
-    }
-  };
+    await streamChatMessage([{ role: "user", content: prompt }], (chunk) => {
+      setPreview((prev) => prev + chunk);
+    });
+
+    setMessageInput("");
+  } catch (err) {
+    setError(
+      err instanceof Error ? err.message : "Failed to generate questions."
+    );
+  } finally {
+    setGenerating(false);
+  }
+};
 
   const handleChatSend = async () => {
-    const promptParts: string[] = [];
+  setGenerating(true);
+  setError(null);
+  setPreview("");
 
-    if (messageInput.trim()) {
-      promptParts.push(messageInput.trim());
+  try {
+    let fullPrompt = messageInput.trim();
+
+    // Process all attachments and inject their real content
+    for (const att of attachments) {
+      if (!att.file) continue;
+
+      if (att.type === "document") {
+        const text = await extractTextFromDocument(att.file);
+        fullPrompt += `\n\n--- Content of document "${att.name}" ---\n${text}\n--- End of document ---`;
+      } else if (att.type === "image" || att.type === "clipboard") {
+        // Text-only fallback for now (true vision needs backend change)
+        fullPrompt += `\n\n[User attached an image named "${att.name}". Please describe what you would expect or ask for more details if needed.]`;
+      }
     }
 
-    if (attachments.length > 0) {
-      const attachmentNames = attachments.map((attachment) => attachment.name).join(", ");
-      promptParts.push(
-        `Attached files: ${attachmentNames}. Include the content of these attachments when answering.`
-      );
-    }
-
-    if (promptParts.length === 0) {
+    if (!fullPrompt.trim()) {
+      // fallback: if no text and no attachments, try sending a generated doc
       const docId = activeDoc || generatedDocs[0]?.id;
       if (docId) {
         await handleSendDocument(docId);
+        return;
       }
+      setError("Please type a message or attach a file.");
       return;
     }
 
-    setGenerating(true);
-    setError(null);
-    setPreview("");
+    await streamChatMessage([{ role: "user", content: fullPrompt }], (chunk) => {
+      setPreview((prev) => prev + chunk);
+    });
 
-    const prompt = promptParts.join(" ");
-
-    try {
-      await streamChatMessage([{ role: "user", content: prompt }], (chunk) => {
-        setPreview((prev) => prev + chunk);
-      });
-      setMessageInput("");
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to get AI response.",
-      );
-    } finally {
-      setGenerating(false);
-    }
-  };
+    setMessageInput("");
+    // Optional: clear attachments after successful send
+    // setAttachments([]);
+    // setSelectedAttachmentId(null);
+  } catch (err) {
+    setError(err instanceof Error ? err.message : "Failed to get AI response.");
+  } finally {
+    setGenerating(false);
+  }
+};
 
   const handleAddToBank = async () => {
     if (!preview.trim()) return;
@@ -581,23 +597,29 @@ const AIQuestionGenerator: React.FC = () => {
                   </div>
                   <div className="flex flex-wrap gap-3">
                     {attachments.map((attachment) => (
-                      <div
-                        key={attachment.id}
-                        className="relative max-w-[120px] rounded-2xl border border-slate-200 bg-slate-100 p-2"
-                      >
-                        {attachment.type === "image" || attachment.type === "clipboard" ? (
-                          <img
-                            src={attachment.url}
-                            alt={attachment.name}
-                            className="h-24 w-full rounded-xl object-cover"
-                          />
-                        ) : (
-                          <div className="flex h-24 items-center justify-center rounded-xl bg-slate-100 text-xs text-slate-500">
+                    <div
+                      key={attachment.id}
+                      className="relative max-w-[140px] rounded-2xl border border-slate-200 bg-slate-100 p-2"
+                    >
+                      {attachment.type === "image" || attachment.type === "clipboard" ? (
+                        <img
+                          src={attachment.url}
+                          alt={attachment.name}
+                          className="h-24 w-full rounded-xl object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-24 flex-col items-center justify-center gap-1 rounded-xl bg-slate-50 px-2">
+                          <FileText size={28} className="text-indigo-500" />
+                          <span
+                            className="w-full truncate text-center text-[11px] font-medium text-slate-600"
+                            title={attachment.name}
+                          >
                             {attachment.name}
-                          </div>
-                        )}
-                      </div>
-                    ))}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
                   </div>
                 </div>
               ) : null}
@@ -631,27 +653,37 @@ const AIQuestionGenerator: React.FC = () => {
                   </div>
                   <div className="flex flex-wrap gap-3">
                     {attachments.map((attachment) => (
-                      <div key={attachment.id} className="group relative w-24 rounded-2xl border border-slate-200 bg-white p-2">
-                        {(attachment.type === "image" || attachment.type === "clipboard") ? (
-                          <img
-                            src={attachment.url}
-                            alt={attachment.name}
-                            className="h-16 w-16 rounded-xl object-cover"
-                          />
-                        ) : (
-                          <div className="flex h-16 items-center justify-center rounded-xl bg-slate-100 text-[10px] text-slate-500">
-                            {attachment.name}
-                          </div>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => removeAttachment(attachment.id)}
-                          className="absolute right-1 top-1 rounded-full bg-white p-1 text-slate-500 hover:bg-slate-100"
+                  <div
+                    key={attachment.id}
+                    className="group relative w-28 rounded-2xl border border-slate-200 bg-white p-2"
+                  >
+                    {attachment.type === "image" || attachment.type === "clipboard" ? (
+                      <img
+                        src={attachment.url}
+                        alt={attachment.name}
+                        className="h-16 w-full rounded-xl object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-16 flex-col items-center justify-center gap-1 rounded-xl bg-slate-50 px-1">
+                        <FileText size={22} className="text-indigo-500" />
+                        <span
+                          className="w-full truncate text-center text-[10px] font-medium text-slate-600"
+                          title={attachment.name}
                         >
-                          <Trash2 size={12} />
-                        </button>
+                          {attachment.name}
+                        </span>
                       </div>
-                    ))}
+                    )}
+
+                      <button
+                        type="button"
+                        onClick={() => removeAttachment(attachment.id)}
+                        className="absolute right-1 top-1 rounded-full bg-white p-1 text-slate-500 shadow-sm hover:bg-slate-100 hover:text-rose-600"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  ))}
                   </div>
                 </div>
               ) : null}
