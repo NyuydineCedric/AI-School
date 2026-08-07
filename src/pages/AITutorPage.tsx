@@ -60,7 +60,8 @@ interface PendingFileAttachment {
   uploaded?: UploadedAttachment;
 }
 
-function formatTime(isoString: string): string {
+function formatTime(isoString?: string): string {
+  if (!isoString) return "";
   return new Date(isoString).toLocaleTimeString([], {
     hour: "2-digit",
     minute: "2-digit",
