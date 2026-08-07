@@ -114,6 +114,27 @@ def download_shared_document(
     )
 
 
+@router.delete("/shared-documents/{document_id}")
+def delete_shared_document(
+    document_id: str,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_role("teacher")),
+):
+    document = db.query(models.SharedDocument).filter(models.SharedDocument.id == document_id).first()
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+    if document.author_id != user.id:
+        raise HTTPException(status_code=403, detail="Only the document author may delete this file")
+
+    storage_path = Path(document.storage_path)
+    if storage_path.exists():
+        storage_path.unlink()
+
+    db.delete(document)
+    db.commit()
+    return {"deleted": True}
+
+
 # ---------- Conversations / Messages ----------
 class SendMessageRequest(BaseModel):
     text: str

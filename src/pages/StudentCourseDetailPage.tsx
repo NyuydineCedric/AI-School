@@ -10,6 +10,7 @@ import {
   AlertCircle,
   X,
 } from "lucide-react";
+<<<<<<< HEAD
 import {
   getCourses,
   getAssignments,
@@ -17,6 +18,9 @@ import {
   getExams,
   getSharedNotes,
 } from "../lib/api";
+=======
+import { getCourses, getAssignments, getQuizzes, getExams, getSharedNotes, getSharedDocuments, downloadSharedDocument } from "../lib/api";
+>>>>>>> 3daf8f6a42e5157f0c3544df3de18f41c0579ad8
 
 interface Course {
   id: string;
@@ -49,7 +53,12 @@ function notePreview(content: string): string {
 const StudentCourseDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const [course, setCourse] = useState<Course | null>(null);
+<<<<<<< HEAD
   const [notes, setNotes] = useState<Note[]>([]);
+=======
+  const [notes, setNotes] = useState<any[]>([]);
+  const [documents, setDocuments] = useState<any[]>([]);
+>>>>>>> 3daf8f6a42e5157f0c3544df3de18f41c0579ad8
   const [assignments, setAssignments] = useState<any[]>([]);
   const [quizzes, setQuizzes] = useState<any[]>([]);
   const [exams, setExams] = useState<any[]>([]);
@@ -57,6 +66,22 @@ const StudentCourseDetailPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   // The note currently open in the "view note" modal, or null when closed.
   const [openNote, setOpenNote] = useState<Note | null>(null);
+
+  const handleDownloadDocument = async (documentId: string, filename: string) => {
+    try {
+      const { blob, filename: downloadedFilename } = await downloadSharedDocument(documentId);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = downloadedFilename || filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to download document.");
+    }
+  };
 
   useEffect(() => {
     setLoading(true);
@@ -67,14 +92,24 @@ const StudentCourseDetailPage: React.FC = () => {
       getQuizzes(),
       getExams(),
       getSharedNotes(),
+      getSharedDocuments(),
     ])
-      .then(([courses, allAssignments, allQuizzes, allExams, allNotes]) => {
+      .then(([courses, allAssignments, allQuizzes, allExams, allNotes, allDocuments]) => {
         const found = courses.find((c: Course) => c.id === id) ?? null;
         setCourse(found);
         setAssignments(allAssignments.filter((a: any) => a.course_id === id));
         setQuizzes(allQuizzes.filter((q: any) => q.course === found?.name));
         setExams(allExams.filter((e: any) => e.course === found?.name));
+<<<<<<< HEAD
         setNotes(allNotes.filter((n: any) => n.course_name === found?.name));
+=======
+        setNotes(
+          allNotes.filter((n: any) => n.course_name === found?.name),
+        );
+        setDocuments(
+          allDocuments.filter((d: any) => d.course_name === found?.name),
+        );
+>>>>>>> 3daf8f6a42e5157f0c3544df3de18f41c0579ad8
       })
       .catch((err) =>
         setError(err instanceof Error ? err.message : "Failed to load course."),
@@ -141,6 +176,43 @@ const StudentCourseDetailPage: React.FC = () => {
                         {notePreview(n.content)}
                       </p>
                     </button>
+                  ))}
+                </div>
+              </div>
+              <div className="col-span-2 bg-white border border-slate-200 rounded-xl p-5">
+                <h3 className="text-sm font-semibold text-slate-800 mb-4">
+                  Course Documents
+                </h3>
+                {documents.length === 0 && (
+                  <p className="text-sm text-slate-400">
+                    No documents have been published for this course yet.
+                  </p>
+                )}
+                <div className="space-y-3">
+                  {documents.map((doc) => (
+                    <div
+                      key={doc.id}
+                      className="border border-slate-100 rounded-lg p-3"
+                    >
+                      <div className="flex items-center justify-between gap-2 mb-1.5">
+                        <div className="flex items-center gap-2">
+                          <FileText size={14} className="text-rose-500" />
+                          <span className="text-xs font-medium text-rose-600">
+                            Document
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleDownloadDocument(doc.id, doc.filename)}
+                          className="text-xs text-blue-600 hover:text-blue-800"
+                        >
+                          Download
+                        </button>
+                      </div>
+                      <p className="text-sm text-slate-600 break-words">
+                        {doc.filename}
+                      </p>
+                    </div>
                   ))}
                 </div>
               </div>
