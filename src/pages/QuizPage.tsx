@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Sidebar from "../components/Sidebar";
 import { useParams } from "react-router-dom";
-import { ChevronLeft, ChevronRight, AlertCircle } from "lucide-react";
+import { ChevronLeft, ChevronRight, AlertCircle, Clock } from "lucide-react";
 import { getQuiz, submitQuiz } from "../lib/api";
 
 interface Question {
@@ -17,6 +17,13 @@ interface Quiz {
   questions: Question[];
 }
 
+function formatCountdown(totalSeconds: number): string {
+  const clamped = Math.max(0, totalSeconds);
+  const minutes = Math.floor(clamped / 60);
+  const seconds = clamped % 60;
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+}
+
 const QuizPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const [quiz, setQuiz] = useState<Quiz | null>(null);
@@ -29,13 +36,27 @@ const QuizPage: React.FC = () => {
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Countdown state, in whole seconds remaining. null until the quiz (and
+  // therefore duration_minutes) has loaded.
+  const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
+  // Guards against double-submitting: the interval could tick to 0 more
+  // than once before handleSubmit's async call resolves and unmounts things.
+  const autoSubmittedRef = useRef(false);
+  // Keep the latest handleSubmit/answers/quiz accessible inside the
+  // interval callback without having to recreate the interval every time
+  // answers change (which would reset the countdown).
+  const submitRef = useRef<() => void>(() => {});
+
   useEffect(() => {
     if (!id) {
       setError("No quiz selected.");
       return;
     }
     getQuiz(id)
-      .then(setQuiz)
+      .then((q: Quiz) => {
+        setQuiz(q);
+        setSecondsLeft(q.duration_minutes * 60);
+      })
       .catch((err) =>
         setError(err instanceof Error ? err.message : "Failed to load quiz."),
       );
@@ -52,6 +73,34 @@ const QuizPage: React.FC = () => {
       setError(err instanceof Error ? err.message : "Submit failed.");
     }
   };
+
+  // Always call the latest handleSubmit from the timer, without restarting
+  // the countdown interval whenever `answers` (and therefore handleSubmit)
+  // changes identity.
+  useEffect(() => {
+    submitRef.current = handleSubmit;
+  });
+
+  // The countdown itself. Ticks once a second once the quiz has loaded,
+  // and stops once the quiz has been submitted (result is set) or time
+  // runs out.
+  useEffect(() => {
+    if (secondsLeft === null || result) return;
+
+    if (secondsLeft <= 0) {
+      if (!autoSubmittedRef.current) {
+        autoSubmittedRef.current = true;
+        submitRef.current();
+      }
+      return;
+    }
+
+    const timerId = setTimeout(() => {
+      setSecondsLeft((s) => (s === null ? null : s - 1));
+    }, 1000);
+
+    return () => clearTimeout(timerId);
+  }, [secondsLeft, result]);
 
   if (error) {
     return (
@@ -79,7 +128,11 @@ const QuizPage: React.FC = () => {
         <Sidebar role="student" active="quizzes" />
         <main className="flex-1 p-6 flex items-center justify-center">
           <div className="bg-white border border-slate-200 rounded-xl p-8 text-center">
-            <p className="text-sm text-slate-500 mb-1">Quiz submitted</p>
+            <p className="text-sm text-slate-500 mb-1">
+              {autoSubmittedRef.current
+                ? "Time's up — quiz submitted automatically"
+                : "Quiz submitted"}
+            </p>
             <p className="text-3xl font-bold text-indigo-600">
               {result.score_pct}%
             </p>
@@ -92,13 +145,29 @@ const QuizPage: React.FC = () => {
     );
   }
 
+  // Under a minute left: flag it visually so the student notices time is
+  // almost up.
+  const isLowTime = secondsLeft !== null && secondsLeft <= 60;
+
   return (
     <div className="flex h-screen bg-slate-50">
       <Sidebar role="student" active="quizzes" />
       <main className="flex-1 overflow-y-auto p-6">
-        <h1 className="text-lg font-semibold text-slate-800 mb-5">
-          {quiz.title}
-        </h1>
+        <div className="flex items-center justify-between mb-5">
+          <h1 className="text-lg font-semibold text-slate-800">{quiz.title}</h1>
+          {secondsLeft !== null && (
+            <div
+              className={`flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-lg ${
+                isLowTime
+                  ? "bg-rose-50 text-rose-600 animate-pulse"
+                  : "bg-indigo-50 text-indigo-600"
+              }`}
+            >
+              <Clock size={15} />
+              {formatCountdown(secondsLeft)}
+            </div>
+          )}
+        </div>
 
         <div className="grid grid-cols-4 gap-4">
           <div className="bg-white border border-slate-200 rounded-xl p-4">

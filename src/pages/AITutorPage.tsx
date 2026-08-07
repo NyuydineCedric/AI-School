@@ -16,12 +16,12 @@ import {
 } from "lucide-react";
 import { streamChatMessage, ChatMessage } from "../lib/api";
 
-const INTRO: ChatMessage = {
-  role: "assistant",
-  content:
-    "Hello ! I'm your AI Tutor. Ask me anything about your courses, assignments, or concepts.",
-  timestamp: new Date().toISOString(),
-};
+// Shown as a centered heading (like Claude's own welcome screen) when the
+// conversation is empty — NOT injected into the messages array, and NOT
+// sent to the backend as chat history.
+const WELCOME_TITLE = "Hello! I'm your AI Tutor.";
+const WELCOME_SUBTITLE =
+  "Ask me anything about your courses, assignments, or concepts.";
 
 // Accepted upload types: images, audio, and common document formats.
 // Video is intentionally excluded — see the video-link flow below instead.
@@ -124,6 +124,7 @@ async function uploadChatFile(
     // The backend route is auth-protected (Depends(get_current_user)),
     // which expects a JWT from /auth/login stored under "ssai_token".
     const token = localStorage.getItem("ssai_token");
+
     if (token) {
       xhr.setRequestHeader("Authorization", `Bearer ${token}`);
     }
@@ -151,7 +152,9 @@ function formatBytes(bytes: number) {
 }
 
 const AITutorPage: React.FC = () => {
-  const [messages, setMessages] = useState<ChatMessage[]>([INTRO]);
+  // Starts empty — the greeting is no longer a message in this array.
+  // See the "welcome heading" block in the render below.
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -308,9 +311,7 @@ const AITutorPage: React.FC = () => {
 
     // Fold each attachment's content/reference directly into the outgoing
     // message so the model actually has something to work with (the
-    // backend LLM call only ever sees plain chat text, not files). Swap
-    // this for a structured `attachments` field if your ChatMessage type
-    // supports one instead.
+    // backend LLM call only ever sees plain chat text, not files).
     const fileBlocks = readyFileAttachments
       .map((a) => {
         const att = a.uploaded!;
@@ -333,13 +334,33 @@ const AITutorPage: React.FC = () => {
       .map((a) => `\n\n[Video reference link: ${a.url}]`)
       .join("");
 
+    // This is what the MODEL sees: the user's typed text plus the full
+    // extracted document/video content, invisibly appended.
     const outgoingText = `${text}${fileBlocks}${linkBlocks}`.trim();
+
+    // This is what the UI shows: just what the user actually typed. The
+    // attachments themselves are rendered separately as small chips
+    // (like ChatGPT), instead of dumping raw extracted text into the
+    // chat bubble.
+    const attachmentSummaries = [
+      ...readyFileAttachments.map((a) => ({
+        kind: "file" as const,
+        name: a.uploaded!.name,
+        type: a.uploaded!.type,
+      })),
+      ...linkAttachments.map((a) => ({
+        kind: "link" as const,
+        name: a.url,
+      })),
+    ];
 
     const historyForBackend: ChatMessage[] = [
       ...messages,
       {
         role: "user",
         content: outgoingText,
+        displayContent: text,
+        attachments: attachmentSummaries,
         timestamp: new Date().toISOString(),
       },
     ];
@@ -403,43 +424,99 @@ const AITutorPage: React.FC = () => {
           ref={scrollRef}
           className="flex-1 bg-white border border-slate-200 rounded-xl p-6 flex flex-col gap-6 overflow-y-auto no-scrollbar"
         >
-          {messages.map((m, i) => {
-            const isLast = i === messages.length - 1;
-            const isStreamingPlaceholder =
-              m.role === "assistant" && m.content === "" && loading && isLast;
-
-            return m.role === "assistant" ? (
-              <div key={i} className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center shrink-0">
-                  <Bot size={16} className="text-indigo-600" />
-                </div>
-                <div className="bg-slate-50 rounded-xl rounded-tl-none px-4 py-3 max-w-md text-sm text-slate-700 whitespace-pre-wrap">
-                  {isStreamingPlaceholder ? (
-                    <span className="text-slate-400">Thinking…</span>
-                  ) : (
-                    <>
-                      {m.content}
-                      <div className="text-[10px] text-slate-400 mt-1">
-                        {formatTime(m.timestamp)}
-                      </div>
-                    </>
-                  )}
-                </div>
+          {messages.length === 0 ? (
+            // Centered welcome heading — shown only before the first message
+            // is sent, exactly once, and never re-appears once the thread
+            // has content. Not a chat bubble, not sent to the backend.
+            <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center px-6">
+              <div className="w-14 h-14 rounded-full bg-indigo-100 flex items-center justify-center">
+                <Bot size={28} className="text-indigo-600" />
               </div>
-            ) : (
-              <div key={i} className="flex items-start gap-3 justify-end">
-                <div className="bg-indigo-600 text-white rounded-xl rounded-tr-none px-4 py-3 max-w-md text-sm whitespace-pre-wrap">
-                  {m.content}
-                  <div className="text-[10px] text-indigo-200 mt-1">
-                    {formatTime(m.timestamp)}
+              <h2 className="text-xl font-semibold text-slate-800">
+                {WELCOME_TITLE}
+              </h2>
+              <p className="text-sm text-slate-500 max-w-sm">
+                {WELCOME_SUBTITLE}
+              </p>
+            </div>
+          ) : (
+            messages.map((m, i) => {
+              const isLast = i === messages.length - 1;
+              const isStreamingPlaceholder =
+                m.role === "assistant" && m.content === "" && loading && isLast;
+              const shownText = m.displayContent ?? m.content;
+
+              return m.role === "assistant" ? (
+                <div key={i} className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center shrink-0">
+                    <Bot size={16} className="text-indigo-600" />
+                  </div>
+                  <div className="bg-slate-50 rounded-xl rounded-tl-none px-4 py-3 max-w-md text-sm text-slate-700 whitespace-pre-wrap">
+                    {isStreamingPlaceholder ? (
+                      <span className="text-slate-400">Thinking…</span>
+                    ) : (
+                      <>
+                        {m.content}
+                        <div className="text-[10px] text-slate-400 mt-1">
+                          {formatTime(m.timestamp)}
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
-                <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center shrink-0">
-                  <User size={16} className="text-slate-500" />
+              ) : (
+                <div key={i} className="flex items-start gap-3 justify-end">
+                  <div className="max-w-md flex flex-col items-end gap-1.5">
+                    {/* Attachment chips — ChatGPT-style: just an icon + name,
+                        no raw extracted text dumped into the bubble. */}
+                    {m.attachments && m.attachments.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 justify-end">
+                        {m.attachments.map((att, ai2) =>
+                          att.kind === "file" ? (
+                            <div
+                              key={ai2}
+                              className="flex items-center gap-1.5 bg-indigo-500/90 text-white rounded-lg px-2.5 py-1.5 text-xs max-w-[200px]"
+                            >
+                              {attachmentIcon(att.type ?? "")}
+                              <span className="truncate">{att.name}</span>
+                            </div>
+                          ) : (
+                            <div
+                              key={ai2}
+                              className="flex items-center gap-1.5 bg-indigo-500/90 text-white rounded-lg px-2.5 py-1.5 text-xs max-w-[200px]"
+                            >
+                              <Video size={14} />
+                              <span className="truncate">{att.name}</span>
+                            </div>
+                          ),
+                        )}
+                      </div>
+                    )}
+
+                    {/* Only show the text bubble if the user actually typed
+                        something — an attachment-only message won't have an
+                        empty bubble floating under the chip. */}
+                    {shownText && (
+                      <div className="bg-indigo-600 text-white rounded-xl rounded-tr-none px-4 py-3 text-sm whitespace-pre-wrap">
+                        {shownText}
+                        <div className="text-[10px] text-indigo-200 mt-1">
+                          {formatTime(m.timestamp)}
+                        </div>
+                      </div>
+                    )}
+                    {!shownText && (
+                      <div className="text-[10px] text-slate-400 px-1">
+                        {formatTime(m.timestamp)}
+                      </div>
+                    )}
+                  </div>
+                  <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center shrink-0">
+                    <User size={16} className="text-slate-500" />
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })
+          )}
         </div>
 
         {error && (

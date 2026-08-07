@@ -24,6 +24,7 @@ import {
   Megaphone,
   LogOut,
   Shield,
+  Award,
 } from "lucide-react";
 import { Role } from "../types";
 
@@ -49,6 +50,7 @@ const ICONS: Record<string, React.ComponentType<any>> = {
   analytics: BarChart3,
   announcements: Megaphone,
   admin: Shield,
+  certificates: Award,
 };
 
 interface NavEntry {
@@ -90,17 +92,25 @@ const TEACHER_NAV: NavEntry[] = [
   { key: "settings", label: "Settings" },
 ];
 
-// Admins get everything a teacher gets, plus a User Management entry up top
-// to create accounts and reset passwords.
+// Admins get a focused nav: manage accounts, oversee the school-wide
+// picture, and use the same AI/communication tools as everyone else —
+// not the full teacher toolkit (no Courses, Students, Quizzes, etc.).
 const ADMIN_NAV: NavEntry[] = [
   { key: "admin", label: "User Management" },
-  ...TEACHER_NAV,
+  { key: "dashboard", label: "Dashboard" },
+  { key: "certificates", label: "Certificates" },
+  { key: "aiassistant", label: "AI Assistant" },
+  { key: "analytics", label: "Analytics" },
+  { key: "announcements", label: "Announcements" },
+  { key: "messages", label: "Messages" },
+  { key: "settings", label: "Settings" },
 ];
 
 // Only keys with a built page get a real route. Everything else in the nav
 // (Notes, Messages, Attendance, Calendar, Notifications, Profile, Settings,
-// Students, Question Bank, Analytics, Announcements, etc.) is shown for visual
-// completeness but has no page yet, so it isn't wired to a route.
+// Students, Question Bank, Analytics, Announcements, Certificates, etc.) is
+// shown for visual completeness but has no page yet, so it isn't wired to
+// a route.
 const STUDENT_ROUTES: Record<string, string> = {
   dashboard: "/student/dashboard",
   courses: "/student/courses",
@@ -135,9 +145,20 @@ const TEACHER_ROUTES: Record<string, string> = {
   settings: "/teacher/settings",
 };
 
+// Admin gets its own URLs — even though several reuse the exact same page
+// component as the teacher nav, the route itself must be distinct so the
+// router can pass role="admin" instead of role="teacher" into Sidebar.
+// Reusing /teacher/... paths here was the bug: the role baked into that
+// route's element never matched the actual logged-in admin.
 const ADMIN_ROUTES: Record<string, string> = {
-  ...TEACHER_ROUTES,
   admin: "/admin/users",
+  dashboard: "/admin/dashboard",
+  aiassistant: "/admin/ai-assistant",
+  analytics: "/admin/analytics",
+  announcements: "/admin/announcements",
+  messages: "/admin/messages",
+  settings: "/admin/settings",
+  // certificates: "/admin/certificates", // uncomment once that page exists
 };
 
 interface SidebarProps {
@@ -147,9 +168,17 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ role, active }) => {
   const items =
-    role === "admin" ? ADMIN_NAV : role === "teacher" ? TEACHER_NAV : STUDENT_NAV;
+    role === "admin"
+      ? ADMIN_NAV
+      : role === "teacher"
+        ? TEACHER_NAV
+        : STUDENT_NAV;
   const routes =
-    role === "admin" ? ADMIN_ROUTES : role === "teacher" ? TEACHER_ROUTES : STUDENT_ROUTES;
+    role === "admin"
+      ? ADMIN_ROUTES
+      : role === "teacher"
+        ? TEACHER_ROUTES
+        : STUDENT_ROUTES;
   const navigate = useNavigate();
 
   return (

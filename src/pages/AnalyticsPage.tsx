@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from "react";
 import Sidebar from "../components/Sidebar";
 import StatCard from "../components/StatCard";
+import { Role } from "../types";
 import { getAnalytics } from "../lib/api";
 
-const AnalyticsPage: React.FC = () => {
+const AnalyticsPage: React.FC<{ role: Role }> = ({ role }) => {
   const [data, setData] = useState<{
     avg_class_score: string;
     at_risk_students: number;
@@ -18,7 +19,7 @@ const AnalyticsPage: React.FC = () => {
 
   return (
     <div className="flex h-screen bg-slate-50">
-      <Sidebar role="teacher" active="analytics" />
+      <Sidebar role={role} active="analytics" />
       <main className="flex-1 overflow-y-auto p-6">
         <h1 className="text-xl font-semibold text-slate-800 mb-5">Analytics</h1>
         <div className="grid grid-cols-3 gap-4">

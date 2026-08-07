@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import Sidebar from "../components/Sidebar";
 import TopHeader from "../components/TopHeader";
 import StatCard from "../components/StatCard";
-import { ClipboardList, HelpCircle, FileText } from "lucide-react";
+import { ClipboardList, HelpCircle, FileText, X } from "lucide-react";
 import { getStudentDashboard } from "../lib/api";
 import { getName } from "../lib/auth";
 
@@ -17,8 +17,19 @@ const tagColor: Record<string, string> = {
   Exam: "bg-rose-50 text-rose-600",
 };
 
+interface TeacherUpdate {
+  id: string;
+  type: string; // "Announcement" | "Assignment" | "Shared Note"
+  title: string;
+  detail: string;
+  course: string;
+  timestamp: string;
+}
+
 const StudentDashboard: React.FC = () => {
   const [data, setData] = useState<any>(null);
+  // The update currently open in the "view document" modal, or null when closed.
+  const [openUpdate, setOpenUpdate] = useState<TeacherUpdate | null>(null);
 
   useEffect(() => {
     getStudentDashboard()
@@ -118,21 +129,23 @@ const StudentDashboard: React.FC = () => {
                   <p className="text-sm text-slate-600">{a}</p>
                 </div>
               ))}
-              {(data?.teacher_updates ?? []).map((update: any) => (
+              {(data?.teacher_updates ?? []).map((update: TeacherUpdate) => (
                 <div key={update.id} className="flex items-start gap-3">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mt-2" />
-                  <div>
-                    <p className="text-sm text-slate-700 font-medium">
+                  <div className="min-w-0">
+                    {/* Clicking the title opens the full note/announcement
+                        in a modal, instead of dumping the raw content
+                        inline into the dashboard row. */}
+                    <button
+                      onClick={() => setOpenUpdate(update)}
+                      className="text-sm text-slate-700 font-medium hover:text-indigo-600 hover:underline text-left"
+                    >
                       {update.title}
-                    </p>
+                    </button>
                     <p className="text-xs text-slate-500">
-                      {update.type} • {update.detail}
+                      {update.type}
+                      {update.course ? ` • ${update.course}` : ""}
                     </p>
-                    {update.course ? (
-                      <p className="text-[11px] text-slate-400 mt-1">
-                        {update.course}
-                      </p>
-                    ) : null}
                   </div>
                 </div>
               ))}
@@ -155,6 +168,48 @@ const StudentDashboard: React.FC = () => {
           </div>
         </div>
       </main>
+
+      {/* Modal shown when a recent-activity item is clicked. Shows the
+          full detail (e.g. the full shared-note content, or announcement
+          body) that used to be dumped inline into the dashboard row. */}
+      {openUpdate && (
+        <div
+          className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4"
+          onClick={() => setOpenUpdate(null)}
+        >
+          <div
+            className="bg-white rounded-xl max-w-lg w-full max-h-[80vh] overflow-y-auto p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between mb-3">
+              <div>
+                <p className="text-[11px] font-medium text-indigo-600 mb-1">
+                  {openUpdate.type}
+                  {openUpdate.course ? ` • ${openUpdate.course}` : ""}
+                </p>
+                <h3 className="text-base font-semibold text-slate-800">
+                  {openUpdate.title}
+                </h3>
+              </div>
+              <button
+                onClick={() => setOpenUpdate(null)}
+                className="text-slate-400 hover:text-slate-600 shrink-0"
+                aria-label="Close"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <p className="text-sm text-slate-600 whitespace-pre-wrap">
+              {openUpdate.detail}
+            </p>
+            {openUpdate.timestamp && (
+              <p className="text-xs text-slate-400 mt-4">
+                {openUpdate.timestamp}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

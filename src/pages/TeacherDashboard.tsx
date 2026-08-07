@@ -4,7 +4,8 @@ import TopHeader from "../components/TopHeader";
 import StatCard from "../components/StatCard";
 import { Link } from "react-router-dom";
 import { getTeacherDashboard } from "../lib/api";
-import { getName } from "../lib/auth";
+
+import { getName, getRole } from "../lib/auth";
 
 const TeacherDashboard: React.FC = () => {
   const [data, setData] = useState<any>(null);
@@ -17,7 +18,7 @@ const TeacherDashboard: React.FC = () => {
 
   return (
     <div className="flex h-screen bg-slate-50">
-      <Sidebar role="teacher" active="dashboard" />
+      <Sidebar role={getRole() ?? "teacher"} active="dashboard" />
       <main className="flex-1 overflow-y-auto p-6">
         <TopHeader
           greeting={`Welcome back, ${getName() ?? "there"}!`}

@@ -104,6 +104,8 @@ class ExamAnswer(Base):
     answer_text = Column(Text)
     score = Column(String, default="-")
     feedback = Column(Text, nullable=True)
+    submitted = Column(Boolean, default=False)
+    submitted_at = Column(DateTime, nullable=True)
 
 
 class Grade(Base):

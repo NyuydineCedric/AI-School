@@ -14,20 +14,25 @@ from seed_data import seed_if_empty
 import models
 from routers import auth, academics, ai, socials, admin
 
+import pytesseract
+pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+
 Base.metadata.create_all(bind=engine)
 
 
 def ensure_exam_answer_columns():
     inspector = inspect(engine)
     columns = {column["name"] for column in inspector.get_columns("exam_answers")}
-    if "score" not in columns or "feedback" not in columns:
-        with SessionLocal() as db:
-            if "score" not in columns:
-                db.execute(text("ALTER TABLE exam_answers ADD COLUMN score VARCHAR DEFAULT '-'"))
-            if "feedback" not in columns:
-                db.execute(text("ALTER TABLE exam_answers ADD COLUMN feedback TEXT"))
-            db.commit()
-
+    with SessionLocal() as db:
+        if "score" not in columns:
+            db.execute(text("ALTER TABLE exam_answers ADD COLUMN score VARCHAR DEFAULT '-'"))
+        if "feedback" not in columns:
+            db.execute(text("ALTER TABLE exam_answers ADD COLUMN feedback TEXT"))
+        if "submitted" not in columns:
+            db.execute(text("ALTER TABLE exam_answers ADD COLUMN submitted BOOLEAN DEFAULT 0"))
+        if "submitted_at" not in columns:
+            db.execute(text("ALTER TABLE exam_answers ADD COLUMN submitted_at DATETIME"))
+        db.commit()
 
 ensure_exam_answer_columns()
 

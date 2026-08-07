@@ -196,16 +196,16 @@ const App: React.FC = () => {
         <Route
           path="/teacher/dashboard"
           element={
-            <ProtectedRoute allow={["teacher", "admin"]}>
-              <TeacherDashboard />
+            <ProtectedRoute allow={["teacher"]}>
+              <TeacherDashboard role="teacher" />
             </ProtectedRoute>
           }
         />
         <Route
           path="/teacher/ai-question-generator"
           element={
-            <ProtectedRoute allow={["teacher", "admin"]}>
-              <AIQuestionGenerator />
+            <ProtectedRoute allow={["teacher"]}>
+              <AIQuestionGenerator role="teacher" />
             </ProtectedRoute>
           }
         />
@@ -284,16 +284,16 @@ const App: React.FC = () => {
         <Route
           path="/teacher/analytics"
           element={
-            <ProtectedRoute allow={["teacher", "admin"]}>
-              <AnalyticsPage />
+            <ProtectedRoute allow={["teacher"]}>
+              <AnalyticsPage role="teacher" />
             </ProtectedRoute>
           }
         />
         <Route
           path="/teacher/announcements"
           element={
-            <ProtectedRoute allow={["teacher", "admin"]}>
-              <AnnouncementsPage />
+            <ProtectedRoute allow={["teacher"]}>
+              <AnnouncementsPage role="teacher" />
             </ProtectedRoute>
           }
         />
@@ -308,7 +308,7 @@ const App: React.FC = () => {
         <Route
           path="/teacher/messages"
           element={
-            <ProtectedRoute allow={["teacher", "admin"]}>
+            <ProtectedRoute allow={["teacher"]}>
               <MessagesPage role="teacher" />
             </ProtectedRoute>
           }
@@ -316,18 +316,70 @@ const App: React.FC = () => {
         <Route
           path="/teacher/settings"
           element={
-            <ProtectedRoute allow={["teacher", "admin"]}>
+            <ProtectedRoute allow={["teacher"]}>
               <SettingsPage role="teacher" />
             </ProtectedRoute>
           }
         />
 
-        {/* Admin */}
+        {/* Admin — dedicated URLs so the Sidebar always gets role="admin",
+            even though several of these render the exact same page
+            components the teacher nav uses. Sharing /teacher/... URLs
+            between roles was the original bug: the role baked into that
+            route never matched the actual logged-in admin. */}
         <Route
           path="/admin/users"
           element={
             <ProtectedRoute allow={["admin"]}>
               <AdminUsersPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/dashboard"
+          element={
+            <ProtectedRoute allow={["admin"]}>
+              <TeacherDashboard role="admin" />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/ai-assistant"
+          element={
+            <ProtectedRoute allow={["admin"]}>
+              <AIQuestionGenerator role="admin" />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/analytics"
+          element={
+            <ProtectedRoute allow={["admin"]}>
+              <AnalyticsPage role="admin" />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/announcements"
+          element={
+            <ProtectedRoute allow={["admin"]}>
+              <AnnouncementsPage role="admin" />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/messages"
+          element={
+            <ProtectedRoute allow={["admin"]}>
+              <MessagesPage role="admin" />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/settings"
+          element={
+            <ProtectedRoute allow={["admin"]}>
+              <SettingsPage role="admin" />
             </ProtectedRoute>
           }
         />

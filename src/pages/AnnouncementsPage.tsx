@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import Sidebar from "../components/Sidebar";
 import { Megaphone, StickyNote } from "lucide-react";
+import { Role } from "../types";
 import {
   createSharedNote,
   getAnnouncements,
@@ -16,7 +17,7 @@ interface Announcement {
   course_name: string;
 }
 
-const AnnouncementsPage: React.FC = () => {
+const AnnouncementsPage: React.FC<{ role: Role }> = ({ role }) => {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [sharedNotes, setSharedNotes] = useState<any[]>([]);
   const [courses, setCourses] = useState<{ id: string; name: string }[]>([]);
@@ -62,7 +63,7 @@ const AnnouncementsPage: React.FC = () => {
 
   return (
     <div className="flex h-screen bg-slate-50">
-      <Sidebar role="teacher" active="announcements" />
+      <Sidebar role={role} active="announcements" />
       <main className="flex-1 overflow-y-auto p-6">
         <h1 className="text-xl font-semibold text-slate-800 mb-5">
           Announcements
