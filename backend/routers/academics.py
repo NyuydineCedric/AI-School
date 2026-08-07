@@ -402,15 +402,27 @@ def create_exam(payload: ExamCreate, db: Session = Depends(get_db), user: models
 
 
 @router.get("/exams/{exam_id}")
-def get_exam(exam_id: str, db: Session = Depends(get_db)):
+def get_exam(exam_id: str, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
     exam = db.query(models.Exam).filter(models.Exam.id == exam_id).first()
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found")
-    return {
-        "id": exam.id, "title": exam.title,
-        "instructions": exam.instructions, "duration_minutes": exam.duration_minutes,
+
+    result = {
+        "id": exam.id,
+        "title": exam.title,
+        "instructions": exam.instructions,
+        "duration_minutes": exam.duration_minutes,
     }
 
+    if user.role == "student":
+        answer = db.query(models.ExamAnswer).filter(
+            models.ExamAnswer.exam_id == exam_id,
+            models.ExamAnswer.student_id == user.id,
+        ).first()
+        result["submitted"] = bool(answer and answer.submitted)
+        result["submitted_at"] = answer.submitted_at if answer else None
+
+    return result
 
 class ExamAnswerRequest(BaseModel):
     answer_text: str
@@ -424,12 +436,39 @@ def save_exam_answer(
     answer = db.query(models.ExamAnswer).filter(
         models.ExamAnswer.exam_id == exam_id, models.ExamAnswer.student_id == user.id
     ).first()
+    if answer and answer.submitted:
+        raise HTTPException(status_code=403, detail="This exam has already been submitted.")
     if not answer:
         answer = models.ExamAnswer(exam_id=exam_id, student_id=user.id)
         db.add(answer)
     answer.answer_text = payload.answer_text
     db.commit()
     return {"saved": True}
+
+
+@router.post("/exams/{exam_id}/submit")
+def submit_exam(
+    exam_id: str, payload: ExamAnswerRequest,
+    db: Session = Depends(get_db), user: models.User = Depends(require_role("student")),
+):
+    answer = db.query(models.ExamAnswer).filter(
+        models.ExamAnswer.exam_id == exam_id, models.ExamAnswer.student_id == user.id
+    ).first()
+
+    if answer and answer.submitted:
+        # Idempotent: multiple triggers (tab close AND route-away, etc.)
+        # may fire in quick succession. The first one wins; later ones are
+        # harmless no-ops instead of errors.
+        return {"submitted": True, "already_submitted": True}
+
+    if not answer:
+        answer = models.ExamAnswer(exam_id=exam_id, student_id=user.id)
+        db.add(answer)
+    answer.answer_text = payload.answer_text
+    answer.submitted = True
+    answer.submitted_at = datetime.utcnow()
+    db.commit()
+    return {"submitted": True, "already_submitted": False}
 
 
 @router.get("/exams/{exam_id}/answers")

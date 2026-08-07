@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Column, String, Float, Integer, Boolean, DateTime, ForeignKey, Text
 from database import Base
 
@@ -104,6 +104,8 @@ class ExamAnswer(Base):
     answer_text = Column(Text)
     score = Column(String, default="-")
     feedback = Column(Text, nullable=True)
+    submitted = Column(Boolean, default=False)
+    submitted_at = Column(DateTime, nullable=True)
 
 
 class Grade(Base):
@@ -131,7 +133,7 @@ class Note(Base):
     student_id = Column(String, ForeignKey("users.id"))
     course_name = Column(String)
     content = Column(Text)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
 
 class SharedNote(Base):
@@ -140,7 +142,7 @@ class SharedNote(Base):
     author_id = Column(String, ForeignKey("users.id"))
     course_name = Column(String)
     content = Column(Text)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
 class SharedDocument(Base):
     __tablename__ = "shared_documents"
@@ -172,9 +174,6 @@ class Message(Base):
     conversation_id = Column(String, ForeignKey("conversations.id"))
     sender_id = Column(String, ForeignKey("users.id"))
     text = Column(Text)
-
-    read = Column(Boolean, default=False)
-
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -184,7 +183,7 @@ class Notification(Base):
     user_id = Column(String, ForeignKey("users.id"))
     text = Column(String)
     read = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
 
 class Announcement(Base):
@@ -194,7 +193,7 @@ class Announcement(Base):
     title = Column(String)
     body = Column(Text)
     course_name = Column(String, default="All Courses")
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
 
 class QuestionBankItem(Base):

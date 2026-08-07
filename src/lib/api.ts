@@ -238,8 +238,14 @@ export type ChatRole = 'user' | 'assistant';
 export interface ChatMessage {
   role: ChatRole;
   content: string;
+  timestamp: string;
+  displayContent?: string; // what's shown in the UI (omits raw extracted file text)
+  attachments?: {
+    kind: "file" | "link";
+    name: string;
+    type?: string; // mime type, only for files
+  }[];
 }
-
 export async function streamChatMessage(
   history: ChatMessage[],
   onToken: (chunk: string) => void,
@@ -308,6 +314,9 @@ export async function fetchGeneratedDocument(body: {
   const filename = match ? match[1] : `${body.course_name || 'notes'}.${body.format === 'docx' ? 'docx' : 'pdf'}`;
   return { blob, filename };
 }
+
+export const submitExam = (id: string, answer_text: string) =>
+  apiPost<any>(`/exams/${id}/submit`, { answer_text });
 
 export async function convertTextToDocument(body: {
   course_name: string;

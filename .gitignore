@@ -21,3 +21,18 @@ env/
 __pycache__/
 *.pyc
 *.pyo
+backend/uploads/shared_documents/78152dcd0cba4d34a2c5d7567ebaa3db_python_exercises_set2.pdf
+backend/uploads/shared_documents/dd52ea67479f4660a453f4721c8ff789_new report-card.pdf
+.gitignore
+.gitignore
+backend/uploads/a0563fa9-099e-4d7a-8f24-98ca1f50168f.pdf
+.gitignore
+.gitignore
+backend/uploads/e5db1706-a783-4064-b469-8c84b259b8a9.docx
+backend/uploads/001c6c44-a9e0-4323-9d69-e2f9a3d8a8b2.pdf
+backend/uploads/976fef39-f3c8-435b-9c9b-e96f08649883.pdf
+backend/uploads/db6ec41e-4bae-4be6-872b-5a406a103046.pdf
+backend/uploads/e9a79b1b-8991-4987-9885-8ac665474c10.docx
+src/pages/AIQuestionGenerator.tsx
+src/pages/AIQuestionGenerator.tsx
+src/pages/StudentCourseDetailPage.tsx

@@ -86,7 +86,9 @@ const AIQuestionGenerator: React.FC = () => {
   const [added, setAdded] = useState(false);
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
-  const [selectedAttachmentId, setSelectedAttachmentId] = useState<string | null>(null);
+  const [selectedAttachmentId, setSelectedAttachmentId] = useState<
+    string | null
+  >(null);
   const [generatedDocs, setGeneratedDocs] = useState<GeneratedDoc[]>([]);
   const [activeDoc, setActiveDoc] = useState<string | null>(null);
   const [sentDocs, setSentDocs] = useState<SharedDocumentItem[]>([]);
@@ -116,6 +118,12 @@ const AIQuestionGenerator: React.FC = () => {
     return () => window.removeEventListener("mousedown", handleOutsideClick);
   }, [showAttachmentMenu]);
 
+<<<<<<< HEAD
+  const handlePaste = async (
+    event: React.ClipboardEvent<HTMLTextAreaElement>,
+  ) => {
+    const items = Array.from(event.clipboardData.items);
+=======
   useEffect(() => {
     if (!course) return;
     let cancelled = false;
@@ -139,6 +147,7 @@ const AIQuestionGenerator: React.FC = () => {
     let foundImage = false;
     const items = Array.from(event.clipboardData.items || []);
 
+>>>>>>> 3daf8f6a42e5157f0c3544df3de18f41c0579ad8
     for (const item of items) {
       if (item.kind === "file" && item.type.startsWith("image/")) {
         const file = item.getAsFile();
@@ -202,8 +211,8 @@ const AIQuestionGenerator: React.FC = () => {
     const type: AttachmentType = mime.startsWith("image/")
       ? "image"
       : mime.startsWith("video/")
-      ? "video"
-      : "document";
+        ? "video"
+        : "document";
 
     const attachment: Attachment = {
       id: generateId(),
@@ -332,6 +341,47 @@ const AIQuestionGenerator: React.FC = () => {
     }
   };
 
+<<<<<<< HEAD
+  const handleScreenshot = async () => {
+    if (!containerRef.current) return;
+    setError(null);
+    setDownloadLoading(true);
+    try {
+      const canvas = await html2canvas(containerRef.current);
+      const blob = await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob(resolve, "image/png"),
+      );
+      if (!blob) throw new Error("Screenshot capture failed.");
+      const url = URL.createObjectURL(blob);
+      const attachment: Attachment = {
+        id: generateId(),
+        type: "image",
+        name: `screenshot-${Date.now()}.png`,
+        url,
+        mime: "image/png",
+        file: undefined,
+      };
+      setAttachments((prev) => [attachment, ...prev]);
+      setSelectedAttachmentId(attachment.id);
+      setScreenshotUrl(url);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to take screenshot.",
+      );
+    } finally {
+      setDownloadLoading(false);
+    }
+  };
+
+  const handleDownloadScreenshot = () => {
+    if (!screenshotUrl) return;
+    const a = document.createElement("a");
+    a.href = screenshotUrl;
+    a.download = `ai-screenshot-${Date.now()}.png`;
+    a.click();
+  };
+=======
+>>>>>>> 3daf8f6a42e5157f0c3544df3de18f41c0579ad8
 
   const handleGenerateDocument = async (format: "pdf" | "docx") => {
     if (!preview.trim()) return;
@@ -350,7 +400,9 @@ const AIQuestionGenerator: React.FC = () => {
         ...prev,
       ]);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to generate document.");
+      setError(
+        err instanceof Error ? err.message : "Failed to generate document.",
+      );
     } finally {
       setDownloadLoading(false);
     }
@@ -439,7 +491,9 @@ const AIQuestionGenerator: React.FC = () => {
     try {
       await convertUploadToDocxFile(selectedAttachment.file);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to convert file to Word.");
+      setError(
+        err instanceof Error ? err.message : "Failed to convert file to Word.",
+      );
     } finally {
       setConverting(false);
     }
@@ -454,9 +508,12 @@ const AIQuestionGenerator: React.FC = () => {
     <div className="flex h-screen bg-slate-50">
       <Sidebar role="teacher" active="aiassistant" />
       <main className="flex-1 overflow-y-auto p-6">
-        <h1 className="text-xl font-semibold text-slate-800">AI Teacher Chat</h1>
+        <h1 className="text-xl font-semibold text-slate-800">
+          AI Teacher Chat
+        </h1>
         <p className="text-sm text-slate-500 mb-5">
-          Use the chat attachment toolbar to paste screenshots, add files, and generate documents.
+          Use the chat attachment toolbar to paste screenshots, add files, and
+          generate documents.
         </p>
 
         <div className="grid grid-cols-2 gap-4">
@@ -543,10 +600,15 @@ const AIQuestionGenerator: React.FC = () => {
             )}
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-xl p-5 flex flex-col" ref={containerRef}>
+          <div
+            className="bg-white border border-slate-200 rounded-xl p-5 flex flex-col"
+            ref={containerRef}
+          >
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h3 className="text-sm font-semibold text-slate-800">Teacher AI Chat</h3>
+                <h3 className="text-sm font-semibold text-slate-800">
+                  Teacher AI Chat
+                </h3>
                 <p className="text-xs text-slate-500">
                   Paste an image or attach a file to include it in the chat.
                 </p>
@@ -590,6 +652,11 @@ const AIQuestionGenerator: React.FC = () => {
             </div>
 
             <div className="flex-1 min-h-[260px] overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 whitespace-pre-wrap">
+<<<<<<< HEAD
+              {preview ? (
+                preview
+              ) : (
+=======
               {attachments.length > 0 ? (
                 <div className="mb-4 rounded-2xl border border-dashed border-slate-300 bg-white p-3">
                   <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -624,6 +691,7 @@ const AIQuestionGenerator: React.FC = () => {
                 </div>
               ) : null}
               {preview ? preview : (
+>>>>>>> 3daf8f6a42e5157f0c3544df3de18f41c0579ad8
                 <span className="text-slate-400">
                   {generating
                     ? "AI is preparing the response..."
@@ -644,7 +712,13 @@ const AIQuestionGenerator: React.FC = () => {
                 >
                   <Plus size={16} /> Attach
                 </button>
+<<<<<<< HEAD
+                <span className="text-xs text-slate-500">
+                  Paste an image into the chat box or attach a file.
+                </span>
+=======
                 <span className="text-xs text-slate-500">Paste an image into the chat box with Ctrl+V or attach a file.</span>
+>>>>>>> 3daf8f6a42e5157f0c3544df3de18f41c0579ad8
               </div>
               {attachments.length > 0 ? (
                 <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
@@ -731,12 +805,16 @@ const AIQuestionGenerator: React.FC = () => {
             <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-4">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h4 className="text-sm font-semibold text-slate-800">Attachments</h4>
+                  <h4 className="text-sm font-semibold text-slate-800">
+                    Attachments
+                  </h4>
                   <p className="text-xs text-slate-500">
                     Select a file to preview and convert.
                   </p>
                 </div>
-                <span className="text-xs text-slate-500">{attachments.length} items</span>
+                <span className="text-xs text-slate-500">
+                  {attachments.length} items
+                </span>
               </div>
               {attachments.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-slate-200 p-6 text-sm text-slate-500 text-center">
@@ -756,7 +834,8 @@ const AIQuestionGenerator: React.FC = () => {
                     >
                       <div className="flex items-center gap-3">
                         <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-500">
-                          {attachment.type === "image" || attachment.type === "clipboard" ? (
+                          {attachment.type === "image" ||
+                          attachment.type === "clipboard" ? (
                             <Image size={18} />
                           ) : attachment.type === "video" ? (
                             <Video size={18} />
@@ -765,13 +844,15 @@ const AIQuestionGenerator: React.FC = () => {
                           )}
                         </div>
                         <div>
-                          <div className="text-sm font-medium text-slate-800">{attachment.name}</div>
+                          <div className="text-sm font-medium text-slate-800">
+                            {attachment.name}
+                          </div>
                           <div className="text-xs text-slate-500">
                             {attachment.type === "document"
                               ? attachment.mime
                               : attachment.type === "video"
-                              ? "Video attachment"
-                              : "Image attachment"}
+                                ? "Video attachment"
+                                : "Image attachment"}
                           </div>
                         </div>
                       </div>
@@ -793,8 +874,12 @@ const AIQuestionGenerator: React.FC = () => {
                 <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
                   <div className="flex items-center justify-between mb-3">
                     <div>
-                      <h5 className="text-sm font-semibold text-slate-800">Selected attachment</h5>
-                      <p className="text-xs text-slate-500">{selectedAttachment.name}</p>
+                      <h5 className="text-sm font-semibold text-slate-800">
+                        Selected attachment
+                      </h5>
+                      <p className="text-xs text-slate-500">
+                        {selectedAttachment.name}
+                      </p>
                     </div>
                     <button
                       type="button"
@@ -804,22 +889,31 @@ const AIQuestionGenerator: React.FC = () => {
                       Clear
                     </button>
                   </div>
-                  {selectedAttachment.type === "image" || selectedAttachment.type === "clipboard" ? (
+                  {selectedAttachment.type === "image" ||
+                  selectedAttachment.type === "clipboard" ? (
                     <img
                       src={selectedAttachment.url}
                       alt={selectedAttachment.name}
                       className="max-h-52 w-full rounded-2xl object-contain"
                     />
                   ) : selectedAttachment.type === "video" ? (
-                    <video controls src={selectedAttachment.url} className="w-full rounded-2xl" />
+                    <video
+                      controls
+                      src={selectedAttachment.url}
+                      className="w-full rounded-2xl"
+                    />
                   ) : (
                     <div className="rounded-2xl border border-dashed border-slate-200 p-4 text-sm text-slate-600">
                       Document attached: {selectedAttachment.name}
                     </div>
                   )}
-                  {selectedAttachment.file?.name.toLowerCase().endsWith(".txt") && (
+                  {selectedAttachment.file?.name
+                    .toLowerCase()
+                    .endsWith(".txt") && (
                     <pre className="mt-3 max-h-44 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-3 text-xs text-slate-700">
-                      {selectedAttachment.file ? "Text file ready for conversion." : ""}
+                      {selectedAttachment.file
+                        ? "Text file ready for conversion."
+                        : ""}
                     </pre>
                   )}
                   <div className="mt-4 flex flex-col gap-3 sm:flex-row">
@@ -852,16 +946,21 @@ const AIQuestionGenerator: React.FC = () => {
             <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-4">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h4 className="text-sm font-semibold text-slate-800">Generated Documents</h4>
+                  <h4 className="text-sm font-semibold text-slate-800">
+                    Generated Documents
+                  </h4>
                   <p className="text-xs text-slate-500">
                     Click a generated file to show its download and publish actions.
                   </p>
                 </div>
-                <span className="text-xs text-slate-500">{generatedDocs.length} files</span>
+                <span className="text-xs text-slate-500">
+                  {generatedDocs.length} files
+                </span>
               </div>
               {generatedDocs.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-slate-200 p-6 text-sm text-slate-500 text-center">
-                  No generated documents yet. Generate PDF or Word to create one.
+                  No generated documents yet. Generate PDF or Word to create
+                  one.
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -877,11 +976,19 @@ const AIQuestionGenerator: React.FC = () => {
                       <button
                         type="button"
                         className="flex w-full items-center justify-between gap-3 text-left"
-                        onClick={() => setActiveDoc((prev) => (prev === doc.id ? null : doc.id))}
+                        onClick={() =>
+                          setActiveDoc((prev) =>
+                            prev === doc.id ? null : doc.id,
+                          )
+                        }
                       >
                         <div>
-                          <div className="text-sm font-medium text-slate-800">{doc.filename}</div>
-                          <div className="text-xs text-slate-500">{doc.format.toUpperCase()}</div>
+                          <div className="text-sm font-medium text-slate-800">
+                            {doc.filename}
+                          </div>
+                          <div className="text-xs text-slate-500">
+                            {doc.format.toUpperCase()}
+                          </div>
                         </div>
                         <Download size={16} className="text-slate-400" />
                       </button>
@@ -894,6 +1001,11 @@ const AIQuestionGenerator: React.FC = () => {
                           >
                             Download
                           </button>
+<<<<<<< HEAD
+                          <span className="text-xs text-slate-500">
+                            The file is ready to download.
+                          </span>
+=======
                           <button
                             type="button"
                             onClick={() => handleSendDocument(doc.id)}
@@ -903,6 +1015,7 @@ const AIQuestionGenerator: React.FC = () => {
                             {sending ? "Sending…" : "Send to Students"}
                           </button>
                           <span className="text-xs text-slate-500">The file is ready to download or publish.</span>
+>>>>>>> 3daf8f6a42e5157f0c3544df3de18f41c0579ad8
                         </div>
                       ) : null}
                     </div>
@@ -923,6 +1036,9 @@ const AIQuestionGenerator: React.FC = () => {
             event.target.value = "";
           }}
         />
+<<<<<<< HEAD
+        <p>yooo</p>
+=======
 
         <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-4">
           <div className="flex items-center justify-between mb-4">
@@ -970,6 +1086,7 @@ const AIQuestionGenerator: React.FC = () => {
             </div>
           )}
         </div>
+>>>>>>> 3daf8f6a42e5157f0c3544df3de18f41c0579ad8
       </main>
     </div>
   );
