@@ -45,7 +45,7 @@ const ICONS: Record<string, React.ComponentType<any>> = {
   profile: User,
   settings: Settings,
   questionbank: FolderKanban,
-  aiassistant: Sparkles,
+  aiassistant: FileText,
   aimarking: CheckSquare,
   analytics: BarChart3,
   announcements: Megaphone,
@@ -81,10 +81,9 @@ const TEACHER_NAV: NavEntry[] = [
   { key: "students", label: "Students" },
   { key: "assignments", label: "Assignments" },
   { key: "quizzes", label: "Quizzes" },
-  { key: "exams", label: "Exams" },
-  { key: "questionbank", label: "Question Bank" },
-  { key: "aiassistant", label: "AI Assistant" },
-  { key: "aitutor", label: "AI Marking" },
+
+  { key: "aiassistant", label: "Exams" },
+
   { key: "attendance", label: "Attendance" },
   { key: "analytics", label: "Analytics" },
   { key: "announcements", label: "Announcements" },
@@ -99,18 +98,13 @@ const ADMIN_NAV: NavEntry[] = [
   { key: "admin", label: "User Management" },
   { key: "dashboard", label: "Dashboard" },
   { key: "certificates", label: "Certificates" },
-  { key: "aiassistant", label: "AI Assistant" },
+  { key: "aiassistant", label: "Exams" },
   { key: "analytics", label: "Analytics" },
   { key: "announcements", label: "Announcements" },
   { key: "messages", label: "Messages" },
   { key: "settings", label: "Settings" },
 ];
 
-// Only keys with a built page get a real route. Everything else in the nav
-// (Notes, Messages, Attendance, Calendar, Notifications, Profile, Settings,
-// Students, Question Bank, Analytics, Announcements, Certificates, etc.) is
-// shown for visual completeness but has no page yet, so it isn't wired to
-// a route.
 const STUDENT_ROUTES: Record<string, string> = {
   dashboard: "/student/dashboard",
   courses: "/student/courses",
@@ -145,11 +139,6 @@ const TEACHER_ROUTES: Record<string, string> = {
   settings: "/teacher/settings",
 };
 
-// Admin gets its own URLs — even though several reuse the exact same page
-// component as the teacher nav, the route itself must be distinct so the
-// router can pass role="admin" instead of role="teacher" into Sidebar.
-// Reusing /teacher/... paths here was the bug: the role baked into that
-// route's element never matched the actual logged-in admin.
 const ADMIN_ROUTES: Record<string, string> = {
   admin: "/admin/users",
   dashboard: "/admin/dashboard",

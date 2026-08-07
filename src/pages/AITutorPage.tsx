@@ -13,31 +13,25 @@ import {
   File as FileIcon,
   X,
   Link as LinkIcon,
+  Volume2,
+  Square,
 } from "lucide-react";
 import { streamChatMessage, ChatMessage } from "../lib/api";
 
 // Shown as a centered heading (like Claude's own welcome screen) when the
-// conversation is empty — NOT injected into the messages array, and NOT
+// conversation is empty - NOT injected into the messages array, and NOT
 // sent to the backend as chat history.
 const WELCOME_TITLE = "Hello! I'm your AI Tutor.";
 const WELCOME_SUBTITLE =
   "Ask me anything about your courses, assignments, or concepts.";
 
-// Accepted upload types: images, audio, and common document formats.
-// Video is intentionally excluded — see the video-link flow below instead.
 const ACCEPTED_FILE_TYPES =
   "image/*,audio/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.csv";
 
 const MAX_FILE_SIZE_MB = 25;
 
-// Base URL for API calls. If your frontend and backend run on different
-// ports in dev (e.g. Vite on 5173, FastAPI on 8000), set VITE_API_URL in
-// your .env file, e.g. VITE_API_URL=http://localhost:8000
-// If they share an origin (prod, or a dev proxy), leave it unset — this
-// falls back to a relative path.
 const API_BASE_URL = import.meta.env.VITE_API_URL ?? "";
 
-// Rough check for a well-formed http(s) URL, not a strict validator.
 const URL_PATTERN = /^https?:\/\/[^\s]+$/i;
 
 interface UploadedAttachment {
@@ -153,7 +147,7 @@ function formatBytes(bytes: number) {
 }
 
 const AITutorPage: React.FC = () => {
-  // Starts empty — the greeting is no longer a message in this array.
+  // Starts empty - the greeting is no longer a message in this array.
   // See the "welcome heading" block in the render below.
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -164,6 +158,8 @@ const AITutorPage: React.FC = () => {
   >([]);
   const [showLinkInput, setShowLinkInput] = useState(false);
   const [linkDraft, setLinkDraft] = useState("");
+  // Index of the assistant message currently being read aloud, if any.
+  const [speakingIndex, setSpeakingIndex] = useState<number | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const linkInputRef = useRef<HTMLInputElement>(null);
@@ -182,6 +178,13 @@ const AITutorPage: React.FC = () => {
       linkInputRef.current?.focus();
     }
   }, [showLinkInput]);
+
+  // Stop any in-progress speech if the page unmounts.
+  useEffect(() => {
+    return () => {
+      window.speechSynthesis?.cancel();
+    };
+  }, []);
 
   const isUploading = pendingAttachments.some(
     (a) => a.kind === "file" && a.status === "uploading",
@@ -296,6 +299,32 @@ const AITutorPage: React.FC = () => {
     setPendingAttachments((prev) => prev.filter((a) => a.id !== id));
   };
 
+  // Reads a given assistant message aloud, or stops playback if that
+  // message is already being read.
+  const handleToggleSpeech = (index: number, text: string) => {
+    if (!("speechSynthesis" in window)) {
+      setError("Speech playback isn't supported in this browser.");
+      return;
+    }
+
+    if (speakingIndex === index) {
+      window.speechSynthesis.cancel();
+      setSpeakingIndex(null);
+      return;
+    }
+
+    if (!text.trim()) return;
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 1;
+    utterance.onend = () => setSpeakingIndex(null);
+    utterance.onerror = () => setSpeakingIndex(null);
+
+    window.speechSynthesis.cancel(); // stop whatever was playing before
+    window.speechSynthesis.speak(utterance);
+    setSpeakingIndex(index);
+  };
+
   const handleSend = async () => {
     const text = input.trim();
     const readyFileAttachments = pendingAttachments.filter(
@@ -309,6 +338,10 @@ const AITutorPage: React.FC = () => {
       readyFileAttachments.length > 0 || linkAttachments.length > 0;
 
     if ((!text && !hasReadyAttachments) || loading || isUploading) return;
+
+    // Stop any speech that's currently playing - a new turn is starting.
+    window.speechSynthesis?.cancel();
+    setSpeakingIndex(null);
 
     // Fold each attachment's content/reference directly into the outgoing
     // message so the model actually has something to work with (the
@@ -324,25 +357,16 @@ const AITutorPage: React.FC = () => {
         }
         // Images/audio: no text extraction available server-side, so at
         // least tell the model the file exists rather than staying silent.
-        return `\n\n[Attached "${att.name}" (${att.type || "unknown type"}) — content could not be extracted as text.]`;
+        return `\n\n[Attached "${att.name}" (${att.type || "unknown type"}) - content could not be extracted as text.]`;
       })
       .join("");
 
-    // Videos are passed as links rather than uploaded/transcribed — the
-    // model can reason about the URL (e.g. a YouTube link) but cannot
-    // watch it, so we're explicit about that.
     const linkBlocks = linkAttachments
       .map((a) => `\n\n[Video reference link: ${a.url}]`)
       .join("");
 
-    // This is what the MODEL sees: the user's typed text plus the full
-    // extracted document/video content, invisibly appended.
     const outgoingText = `${text}${fileBlocks}${linkBlocks}`.trim();
 
-    // This is what the UI shows: just what the user actually typed. The
-    // attachments themselves are rendered separately as small chips
-    // (like ChatGPT), instead of dumping raw extracted text into the
-    // chat bubble.
     const attachmentSummaries = [
       ...readyFileAttachments.map((a) => ({
         kind: "file" as const,
@@ -426,9 +450,6 @@ const AITutorPage: React.FC = () => {
           className="flex-1 bg-white border border-slate-200 rounded-xl p-6 flex flex-col gap-6 overflow-y-auto no-scrollbar"
         >
           {messages.length === 0 ? (
-            // Centered welcome heading — shown only before the first message
-            // is sent, exactly once, and never re-appears once the thread
-            // has content. Not a chat bubble, not sent to the backend.
             <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center px-6">
               <div className="w-14 h-14 rounded-full bg-indigo-100 flex items-center justify-center">
                 <Bot size={28} className="text-indigo-600" />
@@ -445,31 +466,51 @@ const AITutorPage: React.FC = () => {
               const isLast = i === messages.length - 1;
               const isStreamingPlaceholder =
                 m.role === "assistant" && m.content === "" && loading && isLast;
+
+              const isStreamingThisMessage =
+                m.role === "assistant" && loading && isLast;
               const shownText = m.displayContent ?? m.content;
+              const isSpeakingThis = speakingIndex === i;
 
               return m.role === "assistant" ? (
                 <div key={i} className="flex items-start gap-3">
                   <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center shrink-0">
                     <Bot size={16} className="text-indigo-600" />
                   </div>
-                  <div className="bg-slate-50 rounded-xl rounded-tl-none px-4 py-3 max-w-md text-sm text-slate-700 whitespace-pre-wrap">
-                    {isStreamingPlaceholder ? (
-                      <span className="text-slate-400">Thinking…</span>
-                    ) : (
-                      <>
-                        {m.content}
-                        <div className="text-[10px] text-slate-400 mt-1">
-                          {formatTime(m.timestamp)}
-                        </div>
-                      </>
-                    )}
+                  <div className="flex flex-col items-start gap-1 max-w-md">
+                    <div className="bg-slate-50 rounded-xl rounded-tl-none px-4 py-3 text-sm text-slate-700 whitespace-pre-wrap">
+                      {isStreamingPlaceholder ? (
+                        <span className="text-slate-400">Thinking...</span>
+                      ) : (
+                        <>
+                          {m.content}
+                          <div className="text-[10px] text-slate-400 mt-1">
+                            {formatTime(m.timestamp)}
+                          </div>
+                        </>
+                      )}
+                    </div>
+
+                    {!isStreamingPlaceholder &&
+                      !isStreamingThisMessage &&
+                      m.content && (
+                        <button
+                          onClick={() => handleToggleSpeech(i, m.content)}
+                          title={isSpeakingThis ? "Stop reading" : "Read aloud"}
+                          className="flex items-center gap-1 pl-1 text-slate-400 hover:text-indigo-600 transition"
+                        >
+                          {isSpeakingThis ? (
+                            <Square size={14} />
+                          ) : (
+                            <Volume2 size={14} />
+                          )}
+                        </button>
+                      )}
                   </div>
                 </div>
               ) : (
                 <div key={i} className="flex items-start gap-3 justify-end">
                   <div className="max-w-md flex flex-col items-end gap-1.5">
-                    {/* Attachment chips — ChatGPT-style: just an icon + name,
-                        no raw extracted text dumped into the bubble. */}
                     {m.attachments && m.attachments.length > 0 && (
                       <div className="flex flex-wrap gap-1.5 justify-end">
                         {m.attachments.map((att, ai2) =>
@@ -494,9 +535,6 @@ const AITutorPage: React.FC = () => {
                       </div>
                     )}
 
-                    {/* Only show the text bubble if the user actually typed
-                        something — an attachment-only message won't have an
-                        empty bubble floating under the chip. */}
                     {shownText && (
                       <div className="bg-indigo-600 text-white rounded-xl rounded-tr-none px-4 py-3 text-sm whitespace-pre-wrap">
                         {shownText}
@@ -583,7 +621,7 @@ const AITutorPage: React.FC = () => {
               value={linkDraft}
               onChange={(e) => setLinkDraft(e.target.value)}
               onKeyDown={handleLinkKeyDown}
-              placeholder="Paste a YouTube or video link…"
+              placeholder="Paste a YouTube or video link..."
               className="flex-1 border border-slate-200 rounded-full px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
             />
             <button
@@ -633,7 +671,7 @@ const AITutorPage: React.FC = () => {
                   : "text-slate-400 hover:text-indigo-600 hover:bg-slate-50"
               }`}
             >
-              <Video size={16} />
+              <LinkIcon size={16} />
             </button>
           </div>
 

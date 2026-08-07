@@ -9,6 +9,8 @@ import {
   Users,
   AlertCircle,
   X,
+  Volume2,
+  Square,
 } from "lucide-react";
 import { getAssignment, submitAssignment } from "../lib/api";
 import { getToken } from "../lib/auth";
@@ -28,6 +30,8 @@ const AssignmentDetails: React.FC = () => {
   >([]);
   const [currentInput, setCurrentInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  // Index of the assistant message currently being read aloud, if any.
+  const [speakingIndex, setSpeakingIndex] = useState<number | null>(null);
 
   useEffect(() => {
     if (!id) {
@@ -48,6 +52,13 @@ const AssignmentDetails: React.FC = () => {
       )
       .finally(() => setLoading(false));
   }, [id]);
+
+  // Stop any speech in progress if the component unmounts.
+  useEffect(() => {
+    return () => {
+      window.speechSynthesis?.cancel();
+    };
+  }, []);
 
   const handleSubmit = async () => {
     if (!assignment || !work.trim()) return;
@@ -83,9 +94,38 @@ const AssignmentDetails: React.FC = () => {
   };
 
   const closeChat = () => {
+    // Stop any speech that's currently playing when the modal closes.
+    window.speechSynthesis?.cancel();
+    setSpeakingIndex(null);
     setShowChat(false);
     // Optionally clear messages when closing
     // setChatMessages([]);
+  };
+
+  // Reads a given assistant message aloud, or stops playback if that
+  // message is already being read.
+  const handleToggleSpeech = (index: number, text: string) => {
+    if (!("speechSynthesis" in window)) {
+      setError("Speech playback isn't supported in this browser.");
+      return;
+    }
+
+    if (speakingIndex === index) {
+      window.speechSynthesis.cancel();
+      setSpeakingIndex(null);
+      return;
+    }
+
+    if (!text.trim()) return;
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 1;
+    utterance.onend = () => setSpeakingIndex(null);
+    utterance.onerror = () => setSpeakingIndex(null);
+
+    window.speechSynthesis.cancel(); // stop whatever was playing before
+    window.speechSynthesis.speak(utterance);
+    setSpeakingIndex(index);
   };
 
   const sendMessage = async () => {
@@ -104,6 +144,10 @@ const AssignmentDetails: React.FC = () => {
       return;
     }
 
+    // Stop any speech that's currently playing - a new turn is starting.
+    window.speechSynthesis?.cancel();
+    setSpeakingIndex(null);
+
     // Add user message
     const userMsg = { role: "user", content: currentInput };
     const updatedMessages = [...chatMessages, userMsg];
@@ -120,7 +164,7 @@ const AssignmentDetails: React.FC = () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`, // 👈 ADD THE TOKEN
+          Authorization: `Bearer ${token}`, // token attached for auth
         },
         body: JSON.stringify({
           messages: updatedMessages,
@@ -195,7 +239,7 @@ const AssignmentDetails: React.FC = () => {
         </Link>
 
         {loading && (
-          <p className="text-sm text-slate-400">Loading assignment…</p>
+          <p className="text-sm text-slate-400">Loading assignment...</p>
         )}
 
         {error && (
@@ -237,15 +281,18 @@ const AssignmentDetails: React.FC = () => {
                   {assignment.submission?.status ?? "Not Submitted"}
                   {assignment.submission?.status === "Graded" &&
                     assignment.submission?.grade !== undefined &&
-                    ` — ${assignment.submission.grade}/${assignment.max_marks}`}
+                    ` - ${assignment.submission.grade}/${assignment.max_marks}`}
                 </span>
               </div>
 
               <textarea
                 value={work}
                 onChange={(e) => setWork(e.target.value)}
-                placeholder="Type or paste your work here…"
-                disabled={assignment.submission?.status === "Submitted" || assignment.submission?.status === "Graded"}
+                placeholder="Type or paste your work here..."
+                disabled={
+                  assignment.submission?.status === "Submitted" ||
+                  assignment.submission?.status === "Graded"
+                }
                 className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none h-32 mb-3 disabled:bg-slate-50 disabled:text-slate-500"
               />
 
@@ -261,7 +308,7 @@ const AssignmentDetails: React.FC = () => {
                   className="bg-indigo-600 text-white text-sm font-medium px-4 py-2 rounded-lg disabled:opacity-50"
                 >
                   {submitting
-                    ? "Submitting…"
+                    ? "Submitting..."
                     : assignment.submission?.status === "Submitted" ||
                         assignment.submission?.status === "Graded"
                       ? "Submitted"
@@ -333,26 +380,55 @@ const AssignmentDetails: React.FC = () => {
                   Ask me anything about AI-related topics!
                 </p>
               ) : (
-                chatMessages.map((msg, idx) => (
-                  <div
-                    key={idx}
-                    className={`flex ${
-                      msg.role === "user" ? "justify-end" : "justify-start"
-                    }`}
-                  >
+                chatMessages.map((msg, idx) => {
+                  const isLastMessage = idx === chatMessages.length - 1;
+                  // Still streaming into this bubble, or it's an empty
+                  // placeholder - don't offer to read it aloud yet.
+                  const isStreamingThis =
+                    msg.role === "assistant" && isLoading && isLastMessage;
+                  const isSpeakingThis = speakingIndex === idx;
+
+                  return (
                     <div
-                      className={`max-w-[80%] p-3 rounded-lg text-sm ${
-                        msg.role === "user"
-                          ? "bg-indigo-600 text-white"
-                          : "bg-slate-100 text-slate-800"
+                      key={idx}
+                      className={`flex flex-col ${
+                        msg.role === "user" ? "items-end" : "items-start"
                       }`}
                     >
-                      {msg.content || (
-                        <span className="inline-block animate-pulse">▌</span>
-                      )}
+                      <div
+                        className={`max-w-[80%] p-3 rounded-lg text-sm ${
+                          msg.role === "user"
+                            ? "bg-indigo-600 text-white"
+                            : "bg-slate-100 text-slate-800"
+                        }`}
+                      >
+                        {msg.content || (
+                          <span className="inline-block animate-pulse">|</span>
+                        )}
+                      </div>
+
+                      {/* Listen button - only for finished assistant
+                          replies, placed right under the bubble. */}
+                      {msg.role === "assistant" &&
+                        !isStreamingThis &&
+                        msg.content && (
+                          <button
+                            onClick={() => handleToggleSpeech(idx, msg.content)}
+                            title={
+                              isSpeakingThis ? "Stop reading" : "Read aloud"
+                            }
+                            className="flex items-center gap-1 mt-1 pl-1 text-slate-400 hover:text-indigo-600 transition"
+                          >
+                            {isSpeakingThis ? (
+                              <Square size={13} />
+                            ) : (
+                              <Volume2 size={13} />
+                            )}
+                          </button>
+                        )}
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
               {isLoading && (
                 <div className="flex justify-start">

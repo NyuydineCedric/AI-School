@@ -20,6 +20,9 @@ import {
   uploadSharedDocument,
   downloadSharedDocument,
   deleteSharedDocument,
+  getCourses,
+  createExam,
+  getExams,
 } from "../lib/api";
 import { Role } from "../types";
 
@@ -56,12 +59,17 @@ type GeneratedDoc = {
   url: string;
 };
 
-type SharedDocumentItem = {
+type CourseOption = {
   id: string;
-  course_name: string;
-  filename: string;
-  content_type: string;
-  created_at?: string;
+  name: string;
+};
+
+type SentExam = {
+  id: string;
+  title: string;
+  course?: string;
+  course_name?: string;
+  duration_minutes: number;
 };
 
 const generateId = () =>
@@ -70,6 +78,7 @@ const generateId = () =>
     : Math.random().toString(36).slice(2);
 
 const AIQuestionGenerator: React.FC<{ role: Role }> = ({ role }) => {
+  const [courses, setCourses] = useState<CourseOption[]>([]);
   const [course, setCourse] = useState("Database Systems");
   const [topic, setTopic] = useState("Normalization in DBMS");
   const [questionType, setQuestionType] = useState("Multiple Choice (MCQ)");
@@ -91,7 +100,7 @@ const AIQuestionGenerator: React.FC<{ role: Role }> = ({ role }) => {
   >(null);
   const [generatedDocs, setGeneratedDocs] = useState<GeneratedDoc[]>([]);
   const [activeDoc, setActiveDoc] = useState<string | null>(null);
-  const [sentDocs, setSentDocs] = useState<SharedDocumentItem[]>([]);
+  const [sentExams, setSentExams] = useState<SentExam[]>([]);
   const [sending, setSending] = useState(false);
   const [converting, setConverting] = useState(false);
   const [downloadLoading, setDownloadLoading] = useState(false);
@@ -118,18 +127,50 @@ const AIQuestionGenerator: React.FC<{ role: Role }> = ({ role }) => {
     return () => window.removeEventListener("mousedown", handleOutsideClick);
   }, [showAttachmentMenu]);
 
+  // Load real courses from the backend so the dropdown reflects actual
+  // course IDs, and so course-name matching when sending exams is reliable.
+  useEffect(() => {
+    let cancelled = false;
+    getCourses()
+      .then((data) => {
+        if (cancelled) return;
+        const mapped: CourseOption[] = (data || []).map((c: any) => ({
+          id: c.id,
+          name: c.name,
+        }));
+        setCourses(mapped);
+        if (mapped.length && !mapped.some((c) => c.name === course)) {
+          setCourse(mapped[0].name);
+        }
+      })
+      .catch(() => {
+        /* ignore — keep whatever `course` default is already set */
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Load exams already sent for the selected course, so "Sent to Students"
+  // reflects what's actually live on the student Exams page.
   useEffect(() => {
     if (!course) return;
     let cancelled = false;
 
-    getSharedDocuments()
-      .then((allDocs) => {
+    getExams()
+      .then((allExams) => {
         if (!cancelled) {
-          setSentDocs(allDocs.filter((item) => item.course_name === course));
+          setSentExams(
+            (allExams || []).filter(
+              (item: any) =>
+                item.course === course || item.course_name === course,
+            ),
+          );
         }
       })
       .catch(() => {
-        /* ignoring load failures for sent documents */
+        /* ignoring load failures for sent exams */
       });
 
     return () => {
@@ -357,6 +398,9 @@ const AIQuestionGenerator: React.FC<{ role: Role }> = ({ role }) => {
     a.click();
   };
 
+  // Sends the generated question set to students by creating a real Exam
+  // record (course_id + title + instructions + duration). This is what
+  // makes it show up on the student's Exams page via getExams().
   const handleSendDocument = async (docId: string) => {
     const doc = generatedDocs.find((item) => item.id === docId);
     if (!doc) {
@@ -364,61 +408,37 @@ const AIQuestionGenerator: React.FC<{ role: Role }> = ({ role }) => {
       return;
     }
 
+    const matchedCourse = courses.find((c) => c.name === course);
+    if (!matchedCourse) {
+      setError("Select a valid course before sending to students.");
+      return;
+    }
+
+    if (!preview.trim()) {
+      setError("Generate the questions before sending an exam.");
+      return;
+    }
+
     setSending(true);
     setError(null);
     try {
-      const resp = await fetch(doc.url);
-      const blob = await resp.blob();
-      const file = new File([blob], doc.filename, {
-        type:
-          doc.format === "pdf"
-            ? "application/pdf"
-            : "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      });
-      const created = await uploadSharedDocument(course, file);
-      setSentDocs((prev) => [created, ...prev]);
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Failed to send document to students.",
-      );
-    } finally {
-      setSending(false);
-    }
-  };
+      const title =
+        doc.filename.replace(/\.[^.]+$/, "") ||
+        `${course}${topic ? " - " + topic : ""} Exam`;
 
-  const handleDownloadSentDocument = async (documentId: string) => {
-    setDownloadLoading(true);
-    setError(null);
-    try {
-      const { blob, filename } = await downloadSharedDocument(documentId);
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to download document.",
-      );
-    } finally {
-      setDownloadLoading(false);
-    }
-  };
+      // Rough default duration: 5 minutes per question, minimum 30.
+      const duration = Math.max(30, (Number(numQuestions) || 10) * 5);
 
-  const handleDeleteSentDocument = async (documentId: string) => {
-    setSending(true);
-    setError(null);
-    try {
-      await deleteSharedDocument(documentId);
-      setSentDocs((prev) => prev.filter((doc) => doc.id !== documentId));
+      const created = await createExam(
+        matchedCourse.id,
+        title,
+        preview,
+        duration,
+      );
+      setSentExams((prev) => [created, ...prev]);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Failed to delete document.",
+        err instanceof Error ? err.message : "Failed to send exam to students.",
       );
     } finally {
       setSending(false);
@@ -452,9 +472,7 @@ const AIQuestionGenerator: React.FC<{ role: Role }> = ({ role }) => {
     <div className="flex h-screen bg-slate-50">
       <Sidebar role={role} active="aiassistant" />
       <main className="flex-1 overflow-y-auto p-6">
-        <h1 className="text-xl font-semibold text-slate-800">
-          AI Teacher Chat
-        </h1>
+        <h1 className="text-xl font-semibold text-slate-800">Give an Exam</h1>
         <p className="text-sm text-slate-500 mb-5">
           Use the chat attachment toolbar to paste screenshots, add files, and
           generate documents.
@@ -468,9 +486,15 @@ const AIQuestionGenerator: React.FC<{ role: Role }> = ({ role }) => {
                 value={course}
                 onChange={(e) => setCourse(e.target.value)}
               >
-                <option>Database Systems</option>
-                <option>Data Structures</option>
-                <option>Operating Systems</option>
+                {courses.length > 0 ? (
+                  courses.map((c) => (
+                    <option key={c.id} value={c.name}>
+                      {c.name}
+                    </option>
+                  ))
+                ) : (
+                  <option value={course}>{course}</option>
+                )}
               </select>
             </Field>
             <Field label="Topic">
@@ -938,7 +962,8 @@ const AIQuestionGenerator: React.FC<{ role: Role }> = ({ role }) => {
                             {sending ? "Sending…" : "Send to Students"}
                           </button>
                           <span className="text-xs text-slate-500">
-                            The file is ready to download or publish.
+                            Sending creates an exam students can take on their
+                            Exams page.
                           </span>
                         </div>
                       ) : null}
@@ -965,53 +990,35 @@ const AIQuestionGenerator: React.FC<{ role: Role }> = ({ role }) => {
           <div className="flex items-center justify-between mb-4">
             <div>
               <h4 className="text-sm font-semibold text-slate-800">
-                Sent Documents
+                Sent to Students
               </h4>
               <p className="text-xs text-slate-500">
-                These documents are published for students and remain available
-                after refresh.
+                These exams are now live on students' Exams page.
               </p>
             </div>
             <span className="text-xs text-slate-500">
-              {sentDocs.length} files
+              {sentExams.length} exams
             </span>
           </div>
-          {sentDocs.length === 0 ? (
+          {sentExams.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-slate-200 p-6 text-sm text-slate-500 text-center">
-              No documents have been sent to students yet.
+              No exams have been sent to students yet.
             </div>
           ) : (
             <div className="space-y-3">
-              {sentDocs.map((doc) => (
+              {sentExams.map((exam) => (
                 <div
-                  key={doc.id}
+                  key={exam.id}
                   className="rounded-2xl border border-slate-200 bg-white p-4"
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <div className="text-sm font-medium text-slate-800">
-                        {doc.filename}
+                        {exam.title}
                       </div>
                       <div className="text-xs text-slate-500">
-                        {new Date(doc.created_at || "").toLocaleString()}
+                        {exam.duration_minutes} mins
                       </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handleDownloadSentDocument(doc.id)}
-                        className="inline-flex items-center gap-2 rounded-full bg-indigo-600 px-3 py-2 text-xs font-medium text-white hover:bg-indigo-700"
-                      >
-                        Download
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteSentDocument(doc.id)}
-                        disabled={sending}
-                        className="inline-flex items-center gap-2 rounded-full bg-rose-600 px-3 py-2 text-xs font-medium text-white hover:bg-rose-700 disabled:opacity-50"
-                      >
-                        Delete
-                      </button>
                     </div>
                   </div>
                 </div>

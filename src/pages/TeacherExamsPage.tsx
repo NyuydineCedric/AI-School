@@ -22,7 +22,9 @@ const TeacherExamsPage: React.FC = () => {
     getCourses()
       .then(setCourses)
       .catch((err) =>
-        setError(err instanceof Error ? err.message : "Failed to load courses."),
+        setError(
+          err instanceof Error ? err.message : "Failed to load courses.",
+        ),
       );
   };
 

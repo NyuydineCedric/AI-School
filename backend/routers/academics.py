@@ -14,6 +14,86 @@ from dashboard_utils import build_student_updates, build_teacher_updates
 router = APIRouter(tags=["academics"])
 
 
+# ---------- Grade sync helpers ----------
+# Assignment/exam scores are stored as free-text strings and can arrive as
+# either "18/20" or a plain number ("85", "85%"). Quiz scores are already
+# percentages. All three get normalized to a 0-100 pct before being written
+# to the shared Grade table that /grades reads from.
+
+def _assignment_score_pct(raw: Optional[str], max_marks: int) -> Optional[float]:
+    text = (raw or "").strip()
+    if not text or text == "-":
+        return None
+    if "/" in text:
+        try:
+            num_str, denom_str = text.split("/", 1)
+            num, denom = float(num_str.strip()), float(denom_str.strip())
+            return (num / denom) * 100 if denom else None
+        except ValueError:
+            return None
+    try:
+        value = float(text.rstrip("%"))
+    except ValueError:
+        return None
+    return (value / max_marks) * 100 if max_marks else value
+
+
+def _exam_score_pct(raw: Optional[str]) -> Optional[float]:
+    # Exam has no max_marks column, so a bare number is treated as already
+    # being a percentage (e.g. teacher enters "85" meaning 85%).
+    text = (raw or "").strip()
+    if not text or text == "-":
+        return None
+    if "/" in text:
+        try:
+            num_str, denom_str = text.split("/", 1)
+            num, denom = float(num_str.strip()), float(denom_str.strip())
+            return (num / denom) * 100 if denom else None
+        except ValueError:
+            return None
+    try:
+        return float(text.rstrip("%"))
+    except ValueError:
+        return None
+
+
+def _letter_for_pct(pct: float) -> str:
+    if pct >= 93:
+        return "A"
+    if pct >= 90:
+        return "A-"
+    if pct >= 87:
+        return "B+"
+    if pct >= 83:
+        return "B"
+    if pct >= 80:
+        return "B-"
+    if pct >= 77:
+        return "C+"
+    if pct >= 70:
+        return "C"
+    return "F"
+
+
+def _upsert_grade(db: Session, student_id: str, course_id: str, score_pct: float, credits: int = 3):
+    score_pct = max(0.0, min(100.0, score_pct))
+    grade = db.query(models.Grade).filter(
+        models.Grade.student_id == student_id,
+        models.Grade.course_id == course_id,
+    ).first()
+    if grade:
+        grade.score_pct = score_pct
+        grade.letter = _letter_for_pct(score_pct)
+    else:
+        db.add(models.Grade(
+            student_id=student_id,
+            course_id=course_id,
+            letter=_letter_for_pct(score_pct),
+            score_pct=score_pct,
+            credits=credits,
+        ))
+
+
 # ---------- Courses ----------
 class CourseCreate(BaseModel):
     name: str
@@ -227,6 +307,11 @@ def mark_assignment_submission(
 
     submission.score = payload.score
     submission.feedback = payload.feedback
+
+    pct = _assignment_score_pct(payload.score, assignment.max_marks)
+    if pct is not None:
+        _upsert_grade(db, submission.student_id, assignment.course_id, pct)
+
     db.commit()
     return {"saved": True}
 
@@ -371,6 +456,7 @@ def update_quiz_attempt_score(
         raise HTTPException(status_code=404, detail="Attempt not found")
 
     attempt.score = payload.score
+    _upsert_grade(db, attempt.student_id, quiz.course_id, payload.score)
     db.commit()
     return {"saved": True}
 
@@ -526,6 +612,11 @@ def mark_exam_answer(
 
     answer.score = payload.score
     answer.feedback = payload.feedback
+
+    pct = _exam_score_pct(payload.score)
+    if pct is not None:
+        _upsert_grade(db, answer.student_id, exam.course_id, pct)
+
     db.commit()
     return {"saved": True}
 

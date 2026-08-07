@@ -226,7 +226,7 @@ const MessagesPage: React.FC<{ role: Role }> = ({ role }) => {
                         {c.name}
                       </p>
                       <p className="text-xs text-slate-400 truncate mt-0.5">
-                        {c.last_message || "No messages yet"}
+                        {c.last_message || "online"}
                       </p>
                     </div>
                   </button>
