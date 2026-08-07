@@ -253,6 +253,7 @@ const StudentCourseDetailPage: React.FC = () => {
           </div>
         </div>
       )}
+      <p>yoo</p>
     </div>
   );
 };

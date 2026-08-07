@@ -34,3 +34,5 @@ backend/uploads/976fef39-f3c8-435b-9c9b-e96f08649883.pdf
 backend/uploads/db6ec41e-4bae-4be6-872b-5a406a103046.pdf
 backend/uploads/e9a79b1b-8991-4987-9885-8ac665474c10.docx
 src/pages/AIQuestionGenerator.tsx
+src/pages/AIQuestionGenerator.tsx
+src/pages/StudentCourseDetailPage.tsx

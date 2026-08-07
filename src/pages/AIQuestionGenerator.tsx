@@ -749,6 +749,7 @@ const AIQuestionGenerator: React.FC = () => {
             event.target.value = "";
           }}
         />
+        <p>yooo</p>
       </main>
     </div>
   );
