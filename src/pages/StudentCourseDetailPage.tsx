@@ -10,17 +10,15 @@ import {
   AlertCircle,
   X,
 } from "lucide-react";
-<<<<<<< HEAD
 import {
   getCourses,
   getAssignments,
   getQuizzes,
   getExams,
   getSharedNotes,
+  getSharedDocuments,
+  downloadSharedDocument,
 } from "../lib/api";
-=======
-import { getCourses, getAssignments, getQuizzes, getExams, getSharedNotes, getSharedDocuments, downloadSharedDocument } from "../lib/api";
->>>>>>> 3daf8f6a42e5157f0c3544df3de18f41c0579ad8
 
 interface Course {
   id: string;
@@ -53,12 +51,8 @@ function notePreview(content: string): string {
 const StudentCourseDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const [course, setCourse] = useState<Course | null>(null);
-<<<<<<< HEAD
-  const [notes, setNotes] = useState<Note[]>([]);
-=======
   const [notes, setNotes] = useState<any[]>([]);
   const [documents, setDocuments] = useState<any[]>([]);
->>>>>>> 3daf8f6a42e5157f0c3544df3de18f41c0579ad8
   const [assignments, setAssignments] = useState<any[]>([]);
   const [quizzes, setQuizzes] = useState<any[]>([]);
   const [exams, setExams] = useState<any[]>([]);
@@ -67,9 +61,13 @@ const StudentCourseDetailPage: React.FC = () => {
   // The note currently open in the "view note" modal, or null when closed.
   const [openNote, setOpenNote] = useState<Note | null>(null);
 
-  const handleDownloadDocument = async (documentId: string, filename: string) => {
+  const handleDownloadDocument = async (
+    documentId: string,
+    filename: string,
+  ) => {
     try {
-      const { blob, filename: downloadedFilename } = await downloadSharedDocument(documentId);
+      const { blob, filename: downloadedFilename } =
+        await downloadSharedDocument(documentId);
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
@@ -79,7 +77,9 @@ const StudentCourseDetailPage: React.FC = () => {
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to download document.");
+      setError(
+        err instanceof Error ? err.message : "Failed to download document.",
+      );
     }
   };
 
@@ -94,23 +94,26 @@ const StudentCourseDetailPage: React.FC = () => {
       getSharedNotes(),
       getSharedDocuments(),
     ])
-      .then(([courses, allAssignments, allQuizzes, allExams, allNotes, allDocuments]) => {
-        const found = courses.find((c: Course) => c.id === id) ?? null;
-        setCourse(found);
-        setAssignments(allAssignments.filter((a: any) => a.course_id === id));
-        setQuizzes(allQuizzes.filter((q: any) => q.course === found?.name));
-        setExams(allExams.filter((e: any) => e.course === found?.name));
-<<<<<<< HEAD
-        setNotes(allNotes.filter((n: any) => n.course_name === found?.name));
-=======
-        setNotes(
-          allNotes.filter((n: any) => n.course_name === found?.name),
-        );
-        setDocuments(
-          allDocuments.filter((d: any) => d.course_name === found?.name),
-        );
->>>>>>> 3daf8f6a42e5157f0c3544df3de18f41c0579ad8
-      })
+      .then(
+        ([
+          courses,
+          allAssignments,
+          allQuizzes,
+          allExams,
+          allNotes,
+          allDocuments,
+        ]) => {
+          const found = courses.find((c: Course) => c.id === id) ?? null;
+          setCourse(found);
+          setAssignments(allAssignments.filter((a: any) => a.course_id === id));
+          setQuizzes(allQuizzes.filter((q: any) => q.course === found?.name));
+          setExams(allExams.filter((e: any) => e.course === found?.name));
+          setNotes(allNotes.filter((n: any) => n.course_name === found?.name));
+          setDocuments(
+            allDocuments.filter((d: any) => d.course_name === found?.name),
+          );
+        },
+      )
       .catch((err) =>
         setError(err instanceof Error ? err.message : "Failed to load course."),
       )
@@ -203,7 +206,9 @@ const StudentCourseDetailPage: React.FC = () => {
                         </div>
                         <button
                           type="button"
-                          onClick={() => handleDownloadDocument(doc.id, doc.filename)}
+                          onClick={() =>
+                            handleDownloadDocument(doc.id, doc.filename)
+                          }
                           className="text-xs text-blue-600 hover:text-blue-800"
                         >
                           Download

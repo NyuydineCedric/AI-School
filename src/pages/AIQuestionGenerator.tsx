@@ -117,12 +117,6 @@ const AIQuestionGenerator: React.FC = () => {
     return () => window.removeEventListener("mousedown", handleOutsideClick);
   }, [showAttachmentMenu]);
 
-<<<<<<< HEAD
-  const handlePaste = async (
-    event: React.ClipboardEvent<HTMLTextAreaElement>,
-  ) => {
-    const items = Array.from(event.clipboardData.items);
-=======
   useEffect(() => {
     if (!course) return;
     let cancelled = false;
@@ -142,11 +136,12 @@ const AIQuestionGenerator: React.FC = () => {
     };
   }, [course]);
 
-  const handlePaste = async (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+  const handlePaste = async (
+    event: React.ClipboardEvent<HTMLTextAreaElement>,
+  ) => {
     let foundImage = false;
     const items = Array.from(event.clipboardData.items || []);
 
->>>>>>> 3daf8f6a42e5157f0c3544df3de18f41c0579ad8
     for (const item of items) {
       if (item.kind === "file" && item.type.startsWith("image/")) {
         const file = item.getAsFile();
@@ -244,9 +239,11 @@ const AIQuestionGenerator: React.FC = () => {
     }
 
     if (attachments.length > 0) {
-      const attachmentNames = attachments.map((attachment) => attachment.name).join(", ");
+      const attachmentNames = attachments
+        .map((attachment) => attachment.name)
+        .join(", ");
       promptParts.push(
-        `Attached files: ${attachmentNames}. Explain how these materials relate to the question generation.`
+        `Attached files: ${attachmentNames}. Explain how these materials relate to the question generation.`,
       );
     }
 
@@ -274,9 +271,11 @@ const AIQuestionGenerator: React.FC = () => {
     }
 
     if (attachments.length > 0) {
-      const attachmentNames = attachments.map((attachment) => attachment.name).join(", ");
+      const attachmentNames = attachments
+        .map((attachment) => attachment.name)
+        .join(", ");
       promptParts.push(
-        `Attached files: ${attachmentNames}. Include the content of these attachments when answering.`
+        `Attached files: ${attachmentNames}. Include the content of these attachments when answering.`,
       );
     }
 
@@ -324,48 +323,6 @@ const AIQuestionGenerator: React.FC = () => {
       setAdding(false);
     }
   };
-
-<<<<<<< HEAD
-  const handleScreenshot = async () => {
-    if (!containerRef.current) return;
-    setError(null);
-    setDownloadLoading(true);
-    try {
-      const canvas = await html2canvas(containerRef.current);
-      const blob = await new Promise<Blob | null>((resolve) =>
-        canvas.toBlob(resolve, "image/png"),
-      );
-      if (!blob) throw new Error("Screenshot capture failed.");
-      const url = URL.createObjectURL(blob);
-      const attachment: Attachment = {
-        id: generateId(),
-        type: "image",
-        name: `screenshot-${Date.now()}.png`,
-        url,
-        mime: "image/png",
-        file: undefined,
-      };
-      setAttachments((prev) => [attachment, ...prev]);
-      setSelectedAttachmentId(attachment.id);
-      setScreenshotUrl(url);
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to take screenshot.",
-      );
-    } finally {
-      setDownloadLoading(false);
-    }
-  };
-
-  const handleDownloadScreenshot = () => {
-    if (!screenshotUrl) return;
-    const a = document.createElement("a");
-    a.href = screenshotUrl;
-    a.download = `ai-screenshot-${Date.now()}.png`;
-    a.click();
-  };
-=======
->>>>>>> 3daf8f6a42e5157f0c3544df3de18f41c0579ad8
 
   const handleGenerateDocument = async (format: "pdf" | "docx") => {
     if (!preview.trim()) return;
@@ -423,7 +380,7 @@ const AIQuestionGenerator: React.FC = () => {
       setError(
         err instanceof Error
           ? err.message
-          : "Failed to send document to students."
+          : "Failed to send document to students.",
       );
     } finally {
       setSending(false);
@@ -444,7 +401,9 @@ const AIQuestionGenerator: React.FC = () => {
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to download document.");
+      setError(
+        err instanceof Error ? err.message : "Failed to download document.",
+      );
     } finally {
       setDownloadLoading(false);
     }
@@ -458,7 +417,7 @@ const AIQuestionGenerator: React.FC = () => {
       setSentDocs((prev) => prev.filter((doc) => doc.id !== documentId));
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Failed to delete document."
+        err instanceof Error ? err.message : "Failed to delete document.",
       );
     } finally {
       setSending(false);
@@ -636,11 +595,6 @@ const AIQuestionGenerator: React.FC = () => {
             </div>
 
             <div className="flex-1 min-h-[260px] overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 whitespace-pre-wrap">
-<<<<<<< HEAD
-              {preview ? (
-                preview
-              ) : (
-=======
               {attachments.length > 0 ? (
                 <div className="mb-4 rounded-2xl border border-dashed border-slate-300 bg-white p-3">
                   <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -652,7 +606,8 @@ const AIQuestionGenerator: React.FC = () => {
                         key={attachment.id}
                         className="relative max-w-[120px] rounded-2xl border border-slate-200 bg-slate-100 p-2"
                       >
-                        {attachment.type === "image" || attachment.type === "clipboard" ? (
+                        {attachment.type === "image" ||
+                        attachment.type === "clipboard" ? (
                           <img
                             src={attachment.url}
                             alt={attachment.name}
@@ -668,8 +623,9 @@ const AIQuestionGenerator: React.FC = () => {
                   </div>
                 </div>
               ) : null}
-              {preview ? preview : (
->>>>>>> 3daf8f6a42e5157f0c3544df3de18f41c0579ad8
+              {preview ? (
+                preview
+              ) : (
                 <span className="text-slate-400">
                   {generating
                     ? "AI is preparing the response..."
@@ -690,13 +646,9 @@ const AIQuestionGenerator: React.FC = () => {
                 >
                   <Plus size={16} /> Attach
                 </button>
-<<<<<<< HEAD
                 <span className="text-xs text-slate-500">
-                  Paste an image into the chat box or attach a file.
+                  Paste an image into the chat box with Ctrl+V or attach a file.
                 </span>
-=======
-                <span className="text-xs text-slate-500">Paste an image into the chat box with Ctrl+V or attach a file.</span>
->>>>>>> 3daf8f6a42e5157f0c3544df3de18f41c0579ad8
               </div>
               {attachments.length > 0 ? (
                 <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
@@ -705,8 +657,12 @@ const AIQuestionGenerator: React.FC = () => {
                   </div>
                   <div className="flex flex-wrap gap-3">
                     {attachments.map((attachment) => (
-                      <div key={attachment.id} className="group relative w-24 rounded-2xl border border-slate-200 bg-white p-2">
-                        {(attachment.type === "image" || attachment.type === "clipboard") ? (
+                      <div
+                        key={attachment.id}
+                        className="group relative w-24 rounded-2xl border border-slate-200 bg-white p-2"
+                      >
+                        {attachment.type === "image" ||
+                        attachment.type === "clipboard" ? (
                           <img
                             src={attachment.url}
                             alt={attachment.name}
@@ -761,7 +717,9 @@ const AIQuestionGenerator: React.FC = () => {
                   onClick={handleChatSend}
                   disabled={
                     generating ||
-                    (!messageInput.trim() && attachments.length === 0 && generatedDocs.length === 0)
+                    (!messageInput.trim() &&
+                      attachments.length === 0 &&
+                      generatedDocs.length === 0)
                   }
                   className="inline-flex items-center justify-center gap-2 rounded-full bg-violet-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50"
                 >
@@ -918,7 +876,8 @@ const AIQuestionGenerator: React.FC = () => {
                     Generated Documents
                   </h4>
                   <p className="text-xs text-slate-500">
-                    Click a generated file to show its download and publish actions.
+                    Click a generated file to show its download and publish
+                    actions.
                   </p>
                 </div>
                 <span className="text-xs text-slate-500">
@@ -969,11 +928,6 @@ const AIQuestionGenerator: React.FC = () => {
                           >
                             Download
                           </button>
-<<<<<<< HEAD
-                          <span className="text-xs text-slate-500">
-                            The file is ready to download.
-                          </span>
-=======
                           <button
                             type="button"
                             onClick={() => handleSendDocument(doc.id)}
@@ -982,8 +936,9 @@ const AIQuestionGenerator: React.FC = () => {
                           >
                             {sending ? "Sending…" : "Send to Students"}
                           </button>
-                          <span className="text-xs text-slate-500">The file is ready to download or publish.</span>
->>>>>>> 3daf8f6a42e5157f0c3544df3de18f41c0579ad8
+                          <span className="text-xs text-slate-500">
+                            The file is ready to download or publish.
+                          </span>
                         </div>
                       ) : null}
                     </div>
@@ -1004,19 +959,21 @@ const AIQuestionGenerator: React.FC = () => {
             event.target.value = "";
           }}
         />
-<<<<<<< HEAD
-        <p>yooo</p>
-=======
 
         <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-4">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h4 className="text-sm font-semibold text-slate-800">Sent Documents</h4>
+              <h4 className="text-sm font-semibold text-slate-800">
+                Sent Documents
+              </h4>
               <p className="text-xs text-slate-500">
-                These documents are published for students and remain available after refresh.
+                These documents are published for students and remain available
+                after refresh.
               </p>
             </div>
-            <span className="text-xs text-slate-500">{sentDocs.length} files</span>
+            <span className="text-xs text-slate-500">
+              {sentDocs.length} files
+            </span>
           </div>
           {sentDocs.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-slate-200 p-6 text-sm text-slate-500 text-center">
@@ -1025,11 +982,18 @@ const AIQuestionGenerator: React.FC = () => {
           ) : (
             <div className="space-y-3">
               {sentDocs.map((doc) => (
-                <div key={doc.id} className="rounded-2xl border border-slate-200 bg-white p-4">
+                <div
+                  key={doc.id}
+                  className="rounded-2xl border border-slate-200 bg-white p-4"
+                >
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <div className="text-sm font-medium text-slate-800">{doc.filename}</div>
-                      <div className="text-xs text-slate-500">{new Date(doc.created_at || "").toLocaleString()}</div>
+                      <div className="text-sm font-medium text-slate-800">
+                        {doc.filename}
+                      </div>
+                      <div className="text-xs text-slate-500">
+                        {new Date(doc.created_at || "").toLocaleString()}
+                      </div>
                     </div>
                     <div className="flex items-center gap-2">
                       <button
@@ -1054,7 +1018,6 @@ const AIQuestionGenerator: React.FC = () => {
             </div>
           )}
         </div>
->>>>>>> 3daf8f6a42e5157f0c3544df3de18f41c0579ad8
       </main>
     </div>
   );
