@@ -235,12 +235,12 @@ export type ChatRole = 'user' | 'assistant';
 export interface ChatMessage {
   role: ChatRole;
   content: string;
-  timestamp: string;
-  displayContent?: string; // what's shown in the UI (omits raw extracted file text)
+  timestamp?: string;   // now optional
+  displayContent?: string;
   attachments?: {
     kind: "file" | "link";
     name: string;
-    type?: string; // mime type, only for files
+    type?: string;
   }[];
 }
 export async function streamChatMessage(

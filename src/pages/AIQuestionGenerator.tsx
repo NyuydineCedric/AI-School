@@ -21,6 +21,7 @@ import {
   downloadSharedDocument,
   deleteSharedDocument,
 } from "../lib/api";
+import { Role } from "../types";
 
 const Field: React.FC<{ label: string; children: React.ReactNode }> = ({
   label,
@@ -68,7 +69,7 @@ const generateId = () =>
     ? crypto.randomUUID()
     : Math.random().toString(36).slice(2);
 
-const AIQuestionGenerator: React.FC = () => {
+const AIQuestionGenerator: React.FC<{ role: Role }> = ({ role }) => {
   const [course, setCourse] = useState("Database Systems");
   const [topic, setTopic] = useState("Normalization in DBMS");
   const [questionType, setQuestionType] = useState("Multiple Choice (MCQ)");
@@ -449,7 +450,7 @@ const AIQuestionGenerator: React.FC = () => {
 
   return (
     <div className="flex h-screen bg-slate-50">
-      <Sidebar role="teacher" active="aiassistant" />
+      <Sidebar role={role} active="aiassistant" />
       <main className="flex-1 overflow-y-auto p-6">
         <h1 className="text-xl font-semibold text-slate-800">
           AI Teacher Chat
