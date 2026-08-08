@@ -118,12 +118,6 @@ const AIQuestionGenerator: React.FC = () => {
     return () => window.removeEventListener("mousedown", handleOutsideClick);
   }, [showAttachmentMenu]);
 
-<<<<<<< HEAD
-  const handlePaste = async (
-    event: React.ClipboardEvent<HTMLTextAreaElement>,
-  ) => {
-    const items = Array.from(event.clipboardData.items);
-=======
   useEffect(() => {
     if (!course) return;
     let cancelled = false;
@@ -147,7 +141,6 @@ const AIQuestionGenerator: React.FC = () => {
     let foundImage = false;
     const items = Array.from(event.clipboardData.items || []);
 
->>>>>>> 3daf8f6a42e5157f0c3544df3de18f41c0579ad8
     for (const item of items) {
       if (item.kind === "file" && item.type.startsWith("image/")) {
         const file = item.getAsFile();
@@ -263,7 +256,7 @@ const AIQuestionGenerator: React.FC = () => {
 
     const prompt = promptParts.join("\n");
 
-    await streamChatMessage([{ role: "user", content: prompt }], (chunk) => {
+    await streamChatMessage([{ role: "user", content: prompt, timestamp: new Date().toISOString() }], (chunk) => {
       setPreview((prev) => prev + chunk);
     });
 
@@ -309,9 +302,12 @@ const AIQuestionGenerator: React.FC = () => {
       return;
     }
 
-    await streamChatMessage([{ role: "user", content: fullPrompt }], (chunk) => {
-      setPreview((prev) => prev + chunk);
-    });
+    await streamChatMessage(
+        [{ role: "user", content: fullPrompt, timestamp: new Date().toISOString() }],
+        (chunk) => {
+         setPreview((prev) => prev + chunk);
+  }
+);
 
     setMessageInput("");
     // Optional: clear attachments after successful send
@@ -341,47 +337,6 @@ const AIQuestionGenerator: React.FC = () => {
     }
   };
 
-<<<<<<< HEAD
-  const handleScreenshot = async () => {
-    if (!containerRef.current) return;
-    setError(null);
-    setDownloadLoading(true);
-    try {
-      const canvas = await html2canvas(containerRef.current);
-      const blob = await new Promise<Blob | null>((resolve) =>
-        canvas.toBlob(resolve, "image/png"),
-      );
-      if (!blob) throw new Error("Screenshot capture failed.");
-      const url = URL.createObjectURL(blob);
-      const attachment: Attachment = {
-        id: generateId(),
-        type: "image",
-        name: `screenshot-${Date.now()}.png`,
-        url,
-        mime: "image/png",
-        file: undefined,
-      };
-      setAttachments((prev) => [attachment, ...prev]);
-      setSelectedAttachmentId(attachment.id);
-      setScreenshotUrl(url);
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to take screenshot.",
-      );
-    } finally {
-      setDownloadLoading(false);
-    }
-  };
-
-  const handleDownloadScreenshot = () => {
-    if (!screenshotUrl) return;
-    const a = document.createElement("a");
-    a.href = screenshotUrl;
-    a.download = `ai-screenshot-${Date.now()}.png`;
-    a.click();
-  };
-=======
->>>>>>> 3daf8f6a42e5157f0c3544df3de18f41c0579ad8
 
   const handleGenerateDocument = async (format: "pdf" | "docx") => {
     if (!preview.trim()) return;
@@ -652,11 +607,6 @@ const AIQuestionGenerator: React.FC = () => {
             </div>
 
             <div className="flex-1 min-h-[260px] overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 whitespace-pre-wrap">
-<<<<<<< HEAD
-              {preview ? (
-                preview
-              ) : (
-=======
               {attachments.length > 0 ? (
                 <div className="mb-4 rounded-2xl border border-dashed border-slate-300 bg-white p-3">
                   <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -691,7 +641,6 @@ const AIQuestionGenerator: React.FC = () => {
                 </div>
               ) : null}
               {preview ? preview : (
->>>>>>> 3daf8f6a42e5157f0c3544df3de18f41c0579ad8
                 <span className="text-slate-400">
                   {generating
                     ? "AI is preparing the response..."
@@ -712,13 +661,7 @@ const AIQuestionGenerator: React.FC = () => {
                 >
                   <Plus size={16} /> Attach
                 </button>
-<<<<<<< HEAD
-                <span className="text-xs text-slate-500">
-                  Paste an image into the chat box or attach a file.
-                </span>
-=======
                 <span className="text-xs text-slate-500">Paste an image into the chat box with Ctrl+V or attach a file.</span>
->>>>>>> 3daf8f6a42e5157f0c3544df3de18f41c0579ad8
               </div>
               {attachments.length > 0 ? (
                 <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
@@ -1001,11 +944,6 @@ const AIQuestionGenerator: React.FC = () => {
                           >
                             Download
                           </button>
-<<<<<<< HEAD
-                          <span className="text-xs text-slate-500">
-                            The file is ready to download.
-                          </span>
-=======
                           <button
                             type="button"
                             onClick={() => handleSendDocument(doc.id)}
@@ -1015,7 +953,6 @@ const AIQuestionGenerator: React.FC = () => {
                             {sending ? "Sending…" : "Send to Students"}
                           </button>
                           <span className="text-xs text-slate-500">The file is ready to download or publish.</span>
->>>>>>> 3daf8f6a42e5157f0c3544df3de18f41c0579ad8
                         </div>
                       ) : null}
                     </div>
@@ -1036,9 +973,6 @@ const AIQuestionGenerator: React.FC = () => {
             event.target.value = "";
           }}
         />
-<<<<<<< HEAD
-        <p>yooo</p>
-=======
 
         <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-4">
           <div className="flex items-center justify-between mb-4">
@@ -1086,7 +1020,6 @@ const AIQuestionGenerator: React.FC = () => {
             </div>
           )}
         </div>
->>>>>>> 3daf8f6a42e5157f0c3544df3de18f41c0579ad8
       </main>
     </div>
   );

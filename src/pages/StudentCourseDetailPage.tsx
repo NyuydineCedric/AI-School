@@ -10,17 +10,7 @@ import {
   AlertCircle,
   X,
 } from "lucide-react";
-<<<<<<< HEAD
-import {
-  getCourses,
-  getAssignments,
-  getQuizzes,
-  getExams,
-  getSharedNotes,
-} from "../lib/api";
-=======
 import { getCourses, getAssignments, getQuizzes, getExams, getSharedNotes, getSharedDocuments, downloadSharedDocument } from "../lib/api";
->>>>>>> 3daf8f6a42e5157f0c3544df3de18f41c0579ad8
 
 interface Course {
   id: string;
@@ -53,12 +43,8 @@ function notePreview(content: string): string {
 const StudentCourseDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const [course, setCourse] = useState<Course | null>(null);
-<<<<<<< HEAD
-  const [notes, setNotes] = useState<Note[]>([]);
-=======
   const [notes, setNotes] = useState<any[]>([]);
   const [documents, setDocuments] = useState<any[]>([]);
->>>>>>> 3daf8f6a42e5157f0c3544df3de18f41c0579ad8
   const [assignments, setAssignments] = useState<any[]>([]);
   const [quizzes, setQuizzes] = useState<any[]>([]);
   const [exams, setExams] = useState<any[]>([]);
@@ -100,16 +86,12 @@ const StudentCourseDetailPage: React.FC = () => {
         setAssignments(allAssignments.filter((a: any) => a.course_id === id));
         setQuizzes(allQuizzes.filter((q: any) => q.course === found?.name));
         setExams(allExams.filter((e: any) => e.course === found?.name));
-<<<<<<< HEAD
-        setNotes(allNotes.filter((n: any) => n.course_name === found?.name));
-=======
         setNotes(
           allNotes.filter((n: any) => n.course_name === found?.name),
         );
         setDocuments(
           allDocuments.filter((d: any) => d.course_name === found?.name),
         );
->>>>>>> 3daf8f6a42e5157f0c3544df3de18f41c0579ad8
       })
       .catch((err) =>
         setError(err instanceof Error ? err.message : "Failed to load course."),
